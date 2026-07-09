@@ -293,22 +293,34 @@ function pickNext(stories, myId, targetStateId, urgentLabel) {
 }
 
 /* ============================================================================
- * API MODULE — thin wrappers over the Shortcut REST API. Token-authenticated
- * requests are CORS-enabled by Shortcut, so these run straight from the browser.
+ * API MODULE — thin wrappers over the Shortcut REST API.
+ *
+ * CORS note: we authenticate with the `?token=` query parameter, NOT the
+ * `Shortcut-Token` header. A custom request header would force the browser to
+ * send a CORS *preflight* (OPTIONS) request, which Shortcut answers with a bare
+ * 401 and no `Access-Control-Allow-Origin` — killing the call. Passing the token
+ * as a query param keeps every request a "simple" CORS request (no preflight),
+ * which is the path Shortcut echoes the browser's Origin back on. So these run
+ * straight from the browser with no backend/proxy.
  * ========================================================================== */
 
 const API_ORIGIN = new URL(CONFIG.API_BASE).origin;
 
+function withToken(rawUrl, token) {
+  const u = new URL(rawUrl);
+  u.searchParams.set("token", token);
+  return u.toString();
+}
+
 async function apiFetch(pathOrUrl, token) {
-  const url = pathOrUrl.startsWith("http")
+  const base = pathOrUrl.startsWith("http")
     ? pathOrUrl
     : pathOrUrl.startsWith("/api/")
       ? API_ORIGIN + pathOrUrl
       : CONFIG.API_BASE + pathOrUrl;
 
-  const res = await fetch(url, {
-    headers: { "Shortcut-Token": token, "Content-Type": "application/json" },
-  });
+  // No custom headers → simple request → no preflight.
+  const res = await fetch(withToken(base, token));
 
   if (res.status === 401 || res.status === 403) {
     const err = new Error("Token rejected (401/403). Check that your API token is valid.");

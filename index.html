@@ -403,6 +403,14 @@
   }
   .api-tray-handle:hover { color: var(--text); border-color: var(--accent); }
   .api-tray-handle .chev { margin-left: 4px; }
+  .api-tray-handle.api-stop {
+    color: #ff6b6b;
+    border-color: rgba(255, 107, 107, 0.5);
+    background: rgba(255, 107, 107, 0.08);
+    margin-top: 4px;
+  }
+  .api-tray-handle.api-stop:hover { color: #fff; background: rgba(255, 107, 107, 0.22); border-color: #ff6b6b; }
+  .api-tray-handle.api-stop[hidden] { display: none; }
   .api-tray-body {
     pointer-events: auto;
     display: none;
@@ -486,6 +494,7 @@
 <!-- API log tray (rule #9) — session-only, token redacted -->
 <div id="apiTray" class="api-tray">
   <button class="api-tray-handle" id="apiTrayHandle">Shortcut API</button>
+  <button class="api-tray-handle api-stop" id="apiStopBtn" hidden>⏹ Stop execution</button>
   <div class="api-tray-body" id="apiTrayBody"></div>
 </div>
 
@@ -495,6 +504,9 @@
  * ========================================================================== */
 const CONFIG = {
   VERSION: "1.1.0",           // app version shown in footer; bump by hand per release
+  WORKFLOW_ID: 500003585,     // ONLY this workflow's states/roles are used
+  WORKFLOW_NAME: "Development", // shown in the header badge
+  EXCLUDED_ROLES: ["Inbox", "Backlog", "Completed"], // role names dropped from detection (case-insensitive)
   COLUMN_PREFIX: "Dev",       // FALLBACK SEED ONLY — used to seed the role when nothing is detected/stored.
                               //   Live targets now come from detected roles (Story 3/4), not this key.
   URGENT_LABEL: "urgent",     // stories carrying this label jump the queue
@@ -531,13 +543,15 @@ const ROLE_STATE_RE = /^(.+?)\s*\(([^)]+)\)\s*$/;
  * @returns {{ roles: string[], byRole: Map<string, object[]> }} roles sorted A→Z,
  *   each mapped to the full array of its target state objects.
  */
-function detectRoles(workflows) {
+function detectRoles(workflows, excludedRoles = []) {
   const byRole = new Map();
+  const excluded = new Set((excludedRoles || []).map((r) => String(r).toLowerCase()));
   for (const wf of workflows || []) {
     for (const st of wf.states || []) {
       const m = ROLE_STATE_RE.exec(st.name || "");
       if (!m || st.type === "done") continue; // ignore non-role + completed columns
       const role = m[1].trim();
+      if (excluded.has(role.toLowerCase())) continue; // drop excluded roles (case-insensitive)
       const arr = byRole.get(role) || [];
       arr.push({ ...st, workflow_id: wf.id, workflow_name: wf.name });
       byRole.set(role, arr);
@@ -769,6 +783,7 @@ function apiDisplayPath(url) {
 }
 
 let apiLogSeq = 0;
+let apiAbort = new AbortController(); // aborts all in-flight fetches when the Stop button fires
 
 async function apiFetch(pathOrUrl, token) {
   const base = pathOrUrl.startsWith("http")
@@ -794,7 +809,7 @@ async function apiFetch(pathOrUrl, token) {
 
   try {
     // No custom headers → simple request → no preflight.
-    const res = await fetch(withToken(base, token));
+    const res = await fetch(withToken(base, token), { signal: apiAbort.signal });
     entry.status = res.status;
     entry.ms = Date.now() - entry.startedAt;
     apiTrayRender();
@@ -850,6 +865,7 @@ async function getGroups(token) {
       id: g.id,
       name: g.name || "Team",
       member_ids: Array.isArray(g.member_ids) ? g.member_ids : [],
+      default_workflow_id: g.default_workflow_id ?? null,
     }));
 }
 
@@ -903,6 +919,7 @@ let state = {
   apiLog: [],          // session-only API call log for the tray
   lastRefreshed: null,
   loading: false,
+  stopped: false,      // set by the Stop Execution button; cleared on manual refresh
 };
 
 /** Synthetic team id for the "No team" bucket in the Team Manager picker. */
@@ -1032,6 +1049,7 @@ function renderMeta() {
   const roleLabel = state.role || "?";
   const colLabel = roleColumnLabel(state.role);
   metaBar.innerHTML = `
+    <span>workflow <b>${esc(CONFIG.WORKFLOW_NAME)}</b></span>
     <span>role <b>${esc(roleLabel)}</b></span>
     <span><b>${esc(state.tokenMember.name)}</b></span>
     <span>columns <b>${esc(colLabel)}</b></span>
@@ -1585,6 +1603,8 @@ function apiTrayRender() {
 
   const log = state.apiLog || [];
   const inflight = log.filter((e) => e.status === null).length;
+  const stop = document.getElementById("apiStopBtn");
+  if (stop) stop.hidden = inflight === 0;
   handle.innerHTML =
     `Shortcut API · ${log.length} call${log.length === 1 ? "" : "s"}` +
     (inflight ? ` · ${inflight} in-flight ⏱` : "") +
@@ -1619,6 +1639,9 @@ async function refresh(manual) {
   const token = getToken();
   if (!token) return renderSetup();
 
+  // Manual refresh (button / tab / role switch) clears a prior Stop and revives the poll.
+  if (manual) { state.stopped = false; if (getToken()) startPolling(); }
+
   state.loading = true;
   renderMeta();
   try {
@@ -1626,7 +1649,8 @@ async function refresh(manual) {
     if (!state.tokenMember) {
       state.tokenMember = await getMember(token);
       state.members = await getMembers(token);
-      state.groups = await getGroups(token);
+      state.groups = (await getGroups(token))
+        .filter((g) => String(g.default_workflow_id) === String(CONFIG.WORKFLOW_ID));
       state.tab = getStoredTab();               // validated; legacy MODE_KEY values ignored
       state.memberRoles = getStoredMemberRoles();
       state.teammateId = getStoredViewMemberId() || String(state.tokenMember.id);
@@ -1635,8 +1659,11 @@ async function refresh(manual) {
 
     const workflows = await getWorkflows(token);
 
-    // Detect roles + build the flat state-name lookup for chips (both cheap).
-    state.detectedRoles = detectRoles(workflows);
+    // Scope role detection to the Development workflow only (matched by id, so
+    // renames don't break it); build the flat state-name lookup globally so
+    // chips can still label states from any workflow (both cheap).
+    const devWorkflow = (workflows || []).find((w) => String(w.id) === String(CONFIG.WORKFLOW_ID)) || null;
+    state.detectedRoles = detectRoles(devWorkflow ? [devWorkflow] : [], CONFIG.EXCLUDED_ROLES);
     state.stateNameById = buildStateNameById(workflows);
 
     // Resolve roles: stored → detected (+Planner) → first detected → COLUMN_PREFIX.
@@ -1740,6 +1767,7 @@ async function refresh(manual) {
 
     state.lastRefreshed = now;
   } catch (e) {
+    if (e.name === "AbortError" || state.stopped) return; // Stop button unwound the loop; leave the banner
     if (e.code === "AUTH") {
       renderSetup("Your token was rejected. Please paste a valid Shortcut API token.");
       return;
@@ -1794,6 +1822,19 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeManag
 document.getElementById("apiTrayHandle").addEventListener("click", () => {
   apiTrayOpen = !apiTrayOpen;
   apiTrayRender();
+});
+
+// API tray: Stop execution — abort every in-flight fetch and halt the poll so it
+// doesn't immediately re-storm. Resumes on manual Refresh / tab / role switch.
+document.getElementById("apiStopBtn").addEventListener("click", () => {
+  apiAbort.abort();                 // cancel every in-flight fetch
+  apiAbort = new AbortController();  // fresh controller for future calls
+  stopPolling();                    // don't let the 30s poll immediately re-storm
+  state.stopped = true;
+  state.loading = false;
+  apiTrayRender();
+  renderMeta();
+  showError("Execution stopped. Switch tab/role or press Refresh to resume.");
 });
 apiTrayRender(); // seed the collapsed handle
 

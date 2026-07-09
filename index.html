@@ -504,8 +504,7 @@
  * ========================================================================== */
 const CONFIG = {
   VERSION: "1.1.0",           // app version shown in footer; bump by hand per release
-  WORKFLOW_ID: 500003585,     // ONLY this workflow's states/roles are used
-  WORKFLOW_NAME: "Development", // shown in the header badge
+  WORKFLOW_NAME: "Development", // ONLY this workflow's states/roles are used; matched by name (rename-tolerant fallback below)
   EXCLUDED_ROLES: ["Inbox", "Backlog", "Completed"], // role names dropped from detection (case-insensitive)
   COLUMN_PREFIX: "Dev",       // FALLBACK SEED ONLY — used to seed the role when nothing is detected/stored.
                               //   Live targets now come from detected roles (Story 3/4), not this key.
@@ -559,6 +558,20 @@ function detectRoles(workflows, excludedRoles = []) {
   }
   const roles = [...byRole.keys()].sort((a, b) => a.localeCompare(b));
   return { roles, byRole };
+}
+
+/**
+ * Pick the workflow whose states/roles drive the app. Matched by NAME
+ * (case-insensitive, trimmed) against CONFIG.WORKFLOW_NAME — renames are
+ * unlikely and this survives id changes. If the name isn't found, fall back to
+ * the account's default workflow, which Shortcut returns first in `/workflows`
+ * (that is expected to be Development anyway). Returns null only for an empty list.
+ * @returns {object|null}
+ */
+function findDevWorkflow(workflows) {
+  const list = workflows || [];
+  const want = String(CONFIG.WORKFLOW_NAME || "").trim().toLowerCase();
+  return list.find((w) => String(w.name || "").trim().toLowerCase() === want) || list[0] || null;
 }
 
 /**
@@ -904,7 +917,9 @@ let state = {
   viewMember: null,    // whose personal queue is currently rendered (My Queue / My Teammates)
   tab: "myqueue",      // "myqueue" | "teammates" | "team" | "role"
   members: [],         // cached member lookup (fetched once per boot)
-  groups: [],          // cached team lookup (fetched once per boot)
+  allGroups: [],       // all teams (fetched once per boot; groups is the Development-scoped view)
+  groups: [],          // teams whose default workflow is Development (derived each refresh)
+  workflowName: "",    // resolved Development workflow name (for the header badge)
   target: null,        // representative target state (for meta display)
   detectedRoles: { roles: [], byRole: new Map() }, // detectRoles() result (Story 3)
   role: "",            // canonical GLOBAL FALLBACK role (mirrors myRole; used by memberRoles[id] || role)
@@ -1049,7 +1064,7 @@ function renderMeta() {
   const roleLabel = state.role || "?";
   const colLabel = roleColumnLabel(state.role);
   metaBar.innerHTML = `
-    <span>workflow <b>${esc(CONFIG.WORKFLOW_NAME)}</b></span>
+    <span>workflow <b>${esc(state.workflowName || CONFIG.WORKFLOW_NAME)}</b></span>
     <span>role <b>${esc(roleLabel)}</b></span>
     <span><b>${esc(state.tokenMember.name)}</b></span>
     <span>columns <b>${esc(colLabel)}</b></span>
@@ -1649,8 +1664,7 @@ async function refresh(manual) {
     if (!state.tokenMember) {
       state.tokenMember = await getMember(token);
       state.members = await getMembers(token);
-      state.groups = (await getGroups(token))
-        .filter((g) => String(g.default_workflow_id) === String(CONFIG.WORKFLOW_ID));
+      state.allGroups = await getGroups(token); // filtered to the Development workflow below, once it's resolved
       state.tab = getStoredTab();               // validated; legacy MODE_KEY values ignored
       state.memberRoles = getStoredMemberRoles();
       state.teammateId = getStoredViewMemberId() || String(state.tokenMember.id);
@@ -1659,12 +1673,19 @@ async function refresh(manual) {
 
     const workflows = await getWorkflows(token);
 
-    // Scope role detection to the Development workflow only (matched by id, so
-    // renames don't break it); build the flat state-name lookup globally so
+    // Scope role detection to the Development workflow (matched by name, with a
+    // default-workflow fallback); build the flat state-name lookup globally so
     // chips can still label states from any workflow (both cheap).
-    const devWorkflow = (workflows || []).find((w) => String(w.id) === String(CONFIG.WORKFLOW_ID)) || null;
+    const devWorkflow = findDevWorkflow(workflows);
+    state.workflowName = devWorkflow ? (devWorkflow.name || CONFIG.WORKFLOW_NAME) : CONFIG.WORKFLOW_NAME;
     state.detectedRoles = detectRoles(devWorkflow ? [devWorkflow] : [], CONFIG.EXCLUDED_ROLES);
     state.stateNameById = buildStateNameById(workflows);
+
+    // Teams: keep only those whose default workflow is the Development one.
+    const devId = devWorkflow ? devWorkflow.id : null;
+    state.groups = devId == null
+      ? (state.allGroups || [])
+      : (state.allGroups || []).filter((g) => String(g.default_workflow_id) === String(devId));
 
     // Resolve roles: stored → detected (+Planner) → first detected → COLUMN_PREFIX.
     const valid = new Set([...state.detectedRoles.roles, "Planner"]);

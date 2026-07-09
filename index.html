@@ -45,12 +45,38 @@
     gap: 8px 16px;
     margin-bottom: 20px;
   }
-  header.app h1 {
-    font-size: 20px;
-    margin: 0;
-    letter-spacing: 0.2px;
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 11px;
   }
-  header.app h1 .dot { color: var(--accent); }
+  .brand .logo {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    display: block;
+  }
+  .brand .logo .mark { fill: var(--accent); }
+  .brand .wordmark {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+  }
+  .brand .name {
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    color: var(--text);
+  }
+  .brand .name .dot { color: var(--accent); }
+  .brand .subtitle {
+    font-size: 11.5px;
+    letter-spacing: 0.9px;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    margin-top: 2px;
+  }
 
   .meta {
     color: var(--muted);
@@ -298,7 +324,15 @@
 <body>
 <div class="wrap">
   <header class="app">
-    <h1>Next Ticket <span class="dot">●</span></h1>
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 32 32" role="img" aria-label="Shortcut Nudger logo" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path class="mark" d="M17.6 2.3a1.4 1.4 0 0 0-2.4 1V13H4.9a1.4 1.4 0 0 0-1 2.4l11.5 11.9a1.4 1.4 0 0 0 2.4-1V17h10.3a1.4 1.4 0 0 0 1-2.4L17.6 2.3Z"/>
+      </svg>
+      <span class="wordmark">
+        <span class="name">Shortcut Nudger <span class="dot">●</span></span>
+        <span class="subtitle">Next Ticket</span>
+      </span>
+    </div>
     <div class="meta" id="metaBar"></div>
   </header>
 
@@ -308,6 +342,7 @@
   <footer>
     Shortcut Nudger · target column = right-most <b id="footPrefix"></b>* · urgent label = <b id="footUrgent"></b>
     · <a href="#" id="resetToken">reset token</a>
+    · <span id="appVersion"></span>
   </footer>
 </div>
 
@@ -316,7 +351,9 @@
  * CONFIG — tweak these to change behaviour. No build step, no dependencies.
  * ========================================================================== */
 const CONFIG = {
-  COLUMN_PREFIX: "Dev",       // target column = right-most workflow state whose name starts with this (case-insensitive)
+  VERSION: "1.0.0",           // app version shown in footer; bump by hand per release
+  COLUMN_PREFIX: "Dev",       // FALLBACK SEED ONLY — used to seed the role when nothing is detected/stored.
+                              //   Live targets now come from detected roles (Story 3/4), not this key.
   URGENT_LABEL: "urgent",     // stories carrying this label jump the queue
   POLL_MS: 30000,             // auto-refresh interval (ms)
   STALE_DAYS: 3,              // a ticket sat this many days in its column gets the "stale" highlight
@@ -324,12 +361,21 @@ const CONFIG = {
   TOKEN_KEY: "shortcut_nudger_token",
   VIEW_MEMBER_KEY: "shortcut_nudger_view_member", // persists the member whose queue you're viewing (FT-1)
   MODE_KEY: "shortcut_nudger_mode",               // persists "me" | "team" view mode (FT-2)
+  ROLE_KEY: "shortcut_nudger_role",               // persists the selected global role (Story 3)
+  MEMBER_ROLES_KEY: "shortcut_nudger_member_roles", // persists per-member role assignments (Story 4)
 };
 
 /* ============================================================================
  * PURE LOGIC — no DOM, no network. Reusable verbatim by a future Tampermonkey
  * overlay. Fully unit-testable.
  * ========================================================================== */
+
+/**
+ * Board convention: workflow state names are `Role (Stage)`, e.g. "Dev (Ready)",
+ * "QA (Active)". The role is group 1 (trimmed). States that don't match this
+ * pattern (Inbox / Backlog / Completed) are ignored by role detection.
+ */
+const ROLE_STATE_RE = /^(.+?)\s*\(([^)]+)\)\s*$/;
 
 /**
  * Pick the target workflow state: the right-most (highest position) state,
@@ -354,6 +400,64 @@ function pickTargetState(workflows, prefix) {
   return candidates[0];
 }
 
+/**
+ * Scan every workflow state name for the `Role (Stage)` pattern, collect the
+ * distinct role names, and compute each role's target state via the existing
+ * pickTargetState() (reusing its right-most/non-done logic). Roles whose target
+ * is null (only done-type states) are excluded.
+ * @returns {{ roles: string[], byRole: Map<string, object> }} roles sorted A→Z.
+ */
+function detectRoles(workflows) {
+  const names = new Set();
+  for (const wf of workflows || []) {
+    for (const st of wf.states || []) {
+      const m = ROLE_STATE_RE.exec(st.name || "");
+      if (m) names.add(m[1].trim());
+    }
+  }
+  const byRole = new Map();
+  for (const role of names) {
+    const target = pickTargetState(workflows, role); // reuse right-most/non-done logic
+    if (target) byRole.set(role, target);
+  }
+  const roles = [...byRole.keys()].sort((a, b) => a.localeCompare(b));
+  return { roles, byRole };
+}
+
+/**
+ * Resolve the array of target state objects for a selected role.
+ *  - A normal role → [byRole.get(role)] (empty if unknown/null).
+ *  - "Planner" → every role's target, deduped by state id.
+ * @returns {object[]}
+ */
+function resolveTargets(detected, roleName) {
+  const byRole = (detected && detected.byRole) || new Map();
+  if (roleName === "Planner") {
+    const seen = new Map();
+    for (const st of byRole.values()) {
+      if (st && !seen.has(st.id)) seen.set(st.id, st);
+    }
+    return [...seen.values()];
+  }
+  const st = byRole.get(roleName);
+  return st ? [st] : [];
+}
+
+/**
+ * Build a stateRank map `{ [stateId]: rank }` from an array of target state
+ * objects, ranking by ascending board `position`. Used for cross-column sorting
+ * when a pick spans multiple columns (Planner / mixed-role team). Pure.
+ * @returns {Object<string|number, number>}
+ */
+function stateRankFromTargets(targets) {
+  const rank = {};
+  (targets || [])
+    .slice()
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+    .forEach((st, i) => { if (st) rank[st.id] = i; });
+  return rank;
+}
+
 /** True if a story carries the urgent label (case-insensitive name match). */
 function hasUrgentLabel(story, urgentLabel) {
   const target = urgentLabel.toLowerCase();
@@ -362,16 +466,31 @@ function hasUrgentLabel(story, urgentLabel) {
 }
 
 /**
- * Rank the stories owned by me in the target column.
- * Rule: urgent first, then top-to-bottom by board position.
+ * Rank the stories owned by me across one OR MORE target columns.
+ * Rule: urgent first, then (when a stateRank map is supplied) by column rank,
+ * then top-to-bottom by per-column board position.
+ * @param {object[]} stories
+ * @param {number} myId
+ * @param {(number|number[]|Set<number>)} targetStateIds - single id, array, or Set.
+ * @param {string} urgentLabel
+ * @param {Object<string|number, number>} [stateRank] - `{ [stateId]: rank }`. When
+ *   absent/single-column, sorting falls back to (urgent, position) — unchanged
+ *   single-column behavior.
  * @returns {{ next: object|null, queue: object[], all: object[] }}
  */
-function pickNext(stories, myId, targetStateId, urgentLabel) {
+function pickNext(stories, myId, targetStateIds, urgentLabel, stateRank) {
+  // Normalize the target id(s) to a Set (accept single id, array, or Set).
+  const idSet =
+    targetStateIds instanceof Set
+      ? targetStateIds
+      : new Set(Array.isArray(targetStateIds) ? targetStateIds : [targetStateIds]);
+  const hasRank = stateRank && Object.keys(stateRank).length > 0;
+
   const mine = (stories || []).filter(
     (s) =>
       Array.isArray(s.owner_ids) &&
       s.owner_ids.includes(myId) &&
-      s.workflow_state_id === targetStateId &&
+      idSet.has(s.workflow_state_id) &&
       !s.archived &&
       !s.completed
   );
@@ -380,7 +499,12 @@ function pickNext(stories, myId, targetStateId, urgentLabel) {
     const ua = hasUrgentLabel(a, urgentLabel) ? 1 : 0;
     const ub = hasUrgentLabel(b, urgentLabel) ? 1 : 0;
     if (ua !== ub) return ub - ua;                 // urgent first
-    return (a.position ?? 0) - (b.position ?? 0);   // then top-to-bottom
+    if (hasRank) {                                  // cross-column: order by column rank
+      const ra = stateRank[a.workflow_state_id] ?? 0;
+      const rb = stateRank[b.workflow_state_id] ?? 0;
+      if (ra !== rb) return ra - rb;
+    }
+    return (a.position ?? 0) - (b.position ?? 0);   // then top-to-bottom within a column
   });
 
   return { next: sorted[0] || null, queue: sorted.slice(1), all: sorted };
@@ -413,6 +537,23 @@ function daysSince(fromISO, nowMs) {
   const then = Date.parse(fromISO);
   if (Number.isNaN(then)) return 0;
   return Math.floor(Math.max(0, nowMs - then) / 86400000);
+}
+
+/**
+ * Format a Date as "YYYY-MM-DD HH:MM" (24-hour, no seconds), for the build stamp
+ * derived from `document.lastModified`. Returns "unknown" for an invalid Date.
+ * @param {Date} date
+ * @returns {string}
+ */
+function formatBuildStamp(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "unknown";
+  const pad = (n) => String(n).padStart(2, "0");
+  const Y = date.getFullYear();
+  const M = pad(date.getMonth() + 1);
+  const D = pad(date.getDate());
+  const h = pad(date.getHours());
+  const m = pad(date.getMinutes());
+  return `${Y}-${M}-${D} ${h}:${m}`;
 }
 
 /* ============================================================================
@@ -528,7 +669,11 @@ let state = {
   mode: "me",          // "me" | "team"
   members: [],         // cached member lookup (fetched once per boot)
   groups: [],          // cached team lookup (fetched once per boot)
-  target: null,
+  target: null,        // representative target state (for meta display)
+  detectedRoles: { roles: [], byRole: new Map() }, // detectRoles() result (Story 3)
+  role: "",            // selected global role (Story 3)
+  stateRank: {},       // cross-column rank cache for the active target set
+  memberRoles: {},     // { memberId: role } per-person overrides (Story 4)
   lastRefreshed: null,
   loading: false,
 };
@@ -545,6 +690,27 @@ function getStoredMode() {
   return m === "team" ? "team" : "me";
 }
 function setStoredMode(m) { localStorage.setItem(CONFIG.MODE_KEY, m); }
+
+function getStoredRole() { return localStorage.getItem(CONFIG.ROLE_KEY) || ""; }
+function setStoredRole(r) { localStorage.setItem(CONFIG.ROLE_KEY, String(r)); }
+
+function getStoredMemberRoles() {
+  try {
+    const obj = JSON.parse(localStorage.getItem(CONFIG.MEMBER_ROLES_KEY) || "{}");
+    return obj && typeof obj === "object" ? obj : {};
+  } catch { return {}; }
+}
+function setStoredMemberRoles(obj) {
+  localStorage.setItem(CONFIG.MEMBER_ROLES_KEY, JSON.stringify(obj || {}));
+}
+
+/** Column-label text for the active role: role name → its resolved column(s). */
+function roleColumnLabel(roleName) {
+  const targets = resolveTargets(state.detectedRoles, roleName);
+  if (roleName === "Planner") return `Planner (${targets.length} columns)`;
+  if (!targets.length) return roleName || "?";
+  return targets.map((t) => t.name).join(", ");
+}
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) =>
@@ -600,14 +766,22 @@ function renderMeta() {
   const t = state.lastRefreshed
     ? new Date(state.lastRefreshed).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
     : "—";
+  const roleLabel = state.role || "?";
+  const colLabel = roleColumnLabel(state.role);
   metaBar.innerHTML = `
+    <span>role <b>${esc(roleLabel)}</b></span>
     <span><b>${esc(state.tokenMember.name)}</b></span>
-    <span>column <b>${esc(state.target ? state.target.name : "?")}</b></span>
+    <span>column <b>${esc(colLabel)}</b></span>
     <span>updated <b>${t}</b>${state.loading ? ' <span class="spin">↻</span>' : ""}</span>
     <button class="tiny ghost" id="refreshBtn">Refresh</button>
   `;
   const rb = document.getElementById("refreshBtn");
   if (rb) rb.onclick = () => refresh(true);
+
+  // Keep the footer's "target column" reflecting the selected role (re-runs on
+  // every meta render, i.e. after every role change / refresh).
+  const fp = document.getElementById("footPrefix");
+  if (fp) fp.textContent = state.role || CONFIG.COLUMN_PREFIX;
 }
 
 /**
@@ -621,6 +795,16 @@ function controlsHtml() {
     <div class="mode-toggle">
       <button data-mode="me" class="${state.mode === "me" ? "active" : ""}">My Queue</button>
       <button data-mode="team" class="${state.mode === "team" ? "active" : ""}">Team Manager</button>
+    </div>`;
+
+  // Role picker: detected concrete roles + "Planner" (all columns).
+  const roleOptions = [...state.detectedRoles.roles, "Planner"]
+    .map((r) => `<option value="${esc(r)}"${r === state.role ? " selected" : ""}>${esc(r)}</option>`)
+    .join("");
+  const roleSelect = `
+    <div class="switcher">
+      <label for="roleSelect" class="viewing-hint">Role</label>
+      <select id="roleSelect">${roleOptions}</select>
     </div>`;
 
   let switcher = "";
@@ -641,7 +825,7 @@ function controlsHtml() {
       switcher += `<span class="viewing-hint">Viewing <b>${esc(state.viewMember.name)}</b> (not you)<a href="#" class="reset" id="resetMe">reset to me</a></span>`;
     }
   }
-  return `<div class="controls">${modeToggle}${switcher}</div>`;
+  return `<div class="controls">${modeToggle}${roleSelect}${switcher}</div>`;
 }
 
 function wireControls() {
@@ -654,6 +838,14 @@ function wireControls() {
       refresh(true);
     };
   });
+  const roleSel = document.getElementById("roleSelect");
+  if (roleSel) {
+    roleSel.onchange = () => {
+      state.role = roleSel.value;
+      setStoredRole(state.role);
+      refresh(true);
+    };
+  }
   const sel = document.getElementById("memberSelect");
   if (sel) {
     sel.onchange = () => {
@@ -715,10 +907,11 @@ function renderResult(next, queue, targetState, nowMs) {
   let html = controlsHtml();
 
   if (!next) {
+    const colText = roleColumnLabel(state.role);
     html += `
       <div class="empty">
         <div class="big">🎉</div>
-        <div>Nothing assigned to ${viewingOther ? `<b>${esc(state.viewMember.name)}</b>` : "you"} in <b>${esc(targetState ? targetState.name : "the Dev column")}</b>.</div>
+        <div>Nothing assigned to ${viewingOther ? `<b>${esc(state.viewMember.name)}</b>` : "you"} in <b>${esc(colText)}</b>.</div>
         <div class="muted" style="margin-top:6px">${viewingOther ? "Their column is clear." : "Enjoy the breather — or grab something from the board."}</div>
       </div>`;
     app.innerHTML = html;
@@ -776,9 +969,16 @@ function memberRowHtml(member, pick, nowMs, uid) {
   const rest = pick.queue.slice(1);
   const nowUrgent = now && hasUrgentLabel(now, CONFIG.URGENT_LABEL);
 
+  // Per-member role override select (concrete roles only; blank = use global).
+  const assigned = state.memberRoles[member.id] || "";
+  const roleOpts = ['<option value=""' + (assigned ? "" : " selected") + '>&mdash;</option>']
+    .concat(state.detectedRoles.roles.map((r) =>
+      `<option value="${esc(r)}"${r === assigned ? " selected" : ""}>${esc(r)}</option>`))
+    .join("");
+
   let html = `
     <div class="member-row">
-      <div class="who">${esc(member.name)}${member.mention_name ? `<span class="mention">@${esc(member.mention_name)}</span>` : ""}</div>
+      <div class="who">${esc(member.name)}${member.mention_name ? `<span class="mention">@${esc(member.mention_name)}</span>` : ""}<select class="member-role" data-member="${esc(member.id)}" style="margin-left:10px">${roleOpts}</select></div>
       <div class="nn${nowUrgent ? " urgent" : ""}">
         <span class="tag">Now</span>
         <span class="item">
@@ -853,9 +1053,17 @@ function renderTeamManager(groups, members, stories, target, nowMs) {
   const byId = new Map(members.map((m) => [m.id, m]));
 
   // pickNext is memoized per member so a multi-team member isn't recomputed.
+  // Each member's role = their assignment in state.memberRoles, else the global
+  // role. Resolve that role's target set + cross-column rank per member.
   const picks = new Map();
   const pickFor = (id) => {
-    if (!picks.has(id)) picks.set(id, pickNext(stories, id, target.id, CONFIG.URGENT_LABEL));
+    if (!picks.has(id)) {
+      const role = state.memberRoles[id] || state.role;
+      const targets = resolveTargets(state.detectedRoles, role);
+      const ids = targets.map((t) => t.id);
+      const rank = stateRankFromTargets(targets);
+      picks.set(id, pickNext(stories, id, ids, CONFIG.URGENT_LABEL, rank));
+    }
     return picks.get(id);
   };
 
@@ -883,13 +1091,28 @@ function renderTeamManager(groups, members, stories, target, nowMs) {
     html += `
       <div class="empty">
         <div class="big">🌤️</div>
-        <div>No tickets in <b>${esc(target ? target.name : "the target column")}</b> across the workspace.</div>
+        <div>No tickets in <b>${esc(roleColumnLabel(state.role))}</b> across the workspace.</div>
       </div>`;
   }
 
   app.innerHTML = html;
   wireControls();
   wireTeamToggles();
+  wireMemberRoles();
+}
+
+function wireMemberRoles() {
+  document.querySelectorAll("select.member-role[data-member]").forEach((sel) => {
+    sel.onchange = () => {
+      const id = sel.getAttribute("data-member");
+      const v = sel.value;
+      // Blank / "—" default means "use the global role": drop the override.
+      if (!v) delete state.memberRoles[id];
+      else state.memberRoles[id] = v;
+      setStoredMemberRoles(state.memberRoles);
+      refresh(true);
+    };
+  });
 }
 
 function wireTeamToggles() {
@@ -922,6 +1145,7 @@ async function refresh(manual) {
       state.members = await getMembers(token);
       state.groups = await getGroups(token);
       state.mode = getStoredMode();
+      state.memberRoles = getStoredMemberRoles();
 
       // Restore the viewed member; fall back to the token owner if it's gone.
       const storedId = getStoredViewMemberId();
@@ -930,17 +1154,32 @@ async function refresh(manual) {
     }
 
     const workflows = await getWorkflows(token);
-    const target = pickTargetState(workflows, CONFIG.COLUMN_PREFIX);
-    state.target = target;
 
-    if (!target) {
+    // Detect roles from the board each refresh (cheap, keeps the picker fresh).
+    state.detectedRoles = detectRoles(workflows);
+    // Resolve the selected global role: stored → detected (+Planner) → first
+    // detected → COLUMN_PREFIX seed if literally nothing was detected.
+    const valid = new Set([...state.detectedRoles.roles, "Planner"]);
+    let role = state.role || getStoredRole();
+    if (!valid.has(role)) role = state.detectedRoles.roles[0] || CONFIG.COLUMN_PREFIX;
+    state.role = role;
+    setStoredRole(role);
+
+    // Resolve the active target SET for the global role + its cross-column rank.
+    const targets = resolveTargets(state.detectedRoles, state.role);
+    const targetIds = targets.map((t) => t.id);
+    state.stateRank = stateRankFromTargets(targets);
+    state.target = targets[0] || null; // representative for meta display
+
+    if (!targets.length) {
       clearError();
-      app.innerHTML = `
+      app.innerHTML = controlsHtml() + `
         <div class="empty">
           <div class="big">🧭</div>
-          <div>No workflow state starts with "<b>${esc(CONFIG.COLUMN_PREFIX)}</b>".</div>
-          <div class="muted" style="margin-top:6px">Edit <code>COLUMN_PREFIX</code> at the top of the page's script to match your board.</div>
+          <div>No open column resolves for role "<b>${esc(state.role)}</b>".</div>
+          <div class="muted" style="margin-top:6px">Pick a different role above, or check that your board has <code>${esc(state.role)} (Stage)</code> states.</div>
         </div>`;
+      wireControls();
       state.lastRefreshed = Date.now();
       return;
     }
@@ -948,17 +1187,31 @@ async function refresh(manual) {
     const now = Date.now();
     clearError();
 
+    // Run one search per distinct target state name, concat + dedupe by story id.
+    const searchAcrossTargets = async (states, ownerPrefix) => {
+      const all = [];
+      for (const st of states) {
+        const q = `${ownerPrefix}state:"${st.name}" !is:archived`;
+        all.push(...await searchStories(token, q));
+      }
+      return [...new Map(all.map((s) => [s.id, s])).values()];
+    };
+
     if (state.mode === "team") {
-      // One state-scoped search (no owner); pickNext splits it per member.
-      const stories = await searchStories(token, `state:"${target.name}" !is:archived`);
-      renderTeamManager(state.groups, state.members, stories, target, now);
+      // Union of target states across every assigned member role + the global
+      // role (bounded by #roles, not #members). No per-member network calls.
+      const unionRoles = new Set([state.role, ...Object.values(state.memberRoles)]);
+      const unionById = new Map();
+      unionRoles.forEach((r) => resolveTargets(state.detectedRoles, r)
+        .forEach((st) => { if (!unionById.has(st.id)) unionById.set(st.id, st); }));
+      const stories = await searchAcrossTargets([...unionById.values()], "");
+      renderTeamManager(state.groups, state.members, stories, state.target, now);
     } else {
-      // Personal mode: broad query by the *viewed* member + state; pickNext filters.
+      // Personal mode: broad query by the *viewed* member across the target set.
       const view = state.viewMember || state.tokenMember;
-      const q = `owner:${view.mention_name} state:"${target.name}" !is:archived`;
-      const stories = await searchStories(token, q);
-      const { next, queue } = pickNext(stories, view.id, target.id, CONFIG.URGENT_LABEL);
-      renderResult(next, queue, target, now);
+      const stories = await searchAcrossTargets(targets, `owner:${view.mention_name} `);
+      const { next, queue } = pickNext(stories, view.id, targetIds, CONFIG.URGENT_LABEL, state.stateRank);
+      renderResult(next, queue, state.target, now);
     }
 
     state.lastRefreshed = now;
@@ -996,8 +1249,10 @@ async function boot() {
 }
 
 // Footer wiring
-document.getElementById("footPrefix").textContent = CONFIG.COLUMN_PREFIX;
+// NOTE: #footPrefix is set inside renderMeta() so it tracks the selected role.
+document.getElementById("footPrefix").textContent = CONFIG.COLUMN_PREFIX; // seed until first render
 document.getElementById("footUrgent").textContent = CONFIG.URGENT_LABEL;
+document.getElementById("appVersion").textContent = `v${CONFIG.VERSION} · built ${formatBuildStamp(new Date(document.lastModified))}`;
 document.getElementById("resetToken").addEventListener("click", (e) => {
   e.preventDefault();
   clearToken();

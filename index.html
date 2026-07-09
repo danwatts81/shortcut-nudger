@@ -34,7 +34,7 @@
   .wrap {
     max-width: 760px;
     margin: 0 auto;
-    padding: 28px 20px 64px;
+    padding: 28px 20px 96px; /* extra bottom room for the fixed API tray handle */
   }
 
   header.app {
@@ -242,17 +242,18 @@
     flex-wrap: wrap;
     margin-bottom: 22px;
   }
-  .mode-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-  .mode-toggle button {
+  /* .tabs reuses the .mode-toggle look (now a 4-button strip). */
+  .mode-toggle, .tabs { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .mode-toggle button, .tabs button {
     border: none;
     border-radius: 0;
     background: var(--panel);
     color: var(--muted);
     padding: 8px 14px;
   }
-  .mode-toggle button + button { border-left: 1px solid var(--border); }
-  .mode-toggle button.active { background: var(--accent-2); color: #fff; font-weight: 600; }
-  .mode-toggle button:hover:not(.active) { color: var(--text); }
+  .mode-toggle button + button, .tabs button + button { border-left: 1px solid var(--border); }
+  .mode-toggle button.active, .tabs button.active { background: var(--accent-2); color: #fff; font-weight: 600; }
+  .mode-toggle button:hover:not(.active), .tabs button:hover:not(.active) { color: var(--text); }
 
   .switcher { display: inline-flex; align-items: center; gap: 8px; }
   .switcher select { flex: 0 1 220px; padding: 8px 10px; }
@@ -306,6 +307,130 @@
   .mini-queue { margin-top: 8px; }
   .idle-line { color: var(--muted); font-size: 12.5px; padding: 4px 2px; }
 
+  /* ---- Workflow-state chip on queue rows (rule #7) ---- */
+  .state-chip {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  /* ---- Paused tickets (generalized paused rule) ---- */
+  .paused-chip {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #241a2e;
+    border: 1px solid #6b4fd0;
+    color: #c3b3f5;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  ul.queue li.paused-row { border-style: dashed; opacity: 0.92; }
+  ul.queue li.paused-row .rank { color: #c3b3f5; }
+  .nn.paused-line .tag { color: #c3b3f5; }
+  .member-row.admin-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .member-row.admin-row .who { margin-bottom: 0; }
+
+  /* ---- Manage Teammates modal (rule #6) ---- */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: none;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 60px 16px;
+    z-index: 60;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    width: 100%;
+    max-width: 520px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+  }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .modal-head h3 { margin: 0; font-size: 16px; }
+  .modal input[type="text"] { margin-bottom: 14px; }
+  .modal-list { overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .manage-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 12px;
+  }
+  .manage-row .who { font-weight: 600; }
+  .manage-row .mention { color: var(--muted); font-weight: 400; font-size: 12.5px; margin-left: 6px; }
+
+  /* ---- API log tray (rule #9) ---- */
+  .api-tray {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    pointer-events: none;
+  }
+  .api-tray-handle {
+    pointer-events: auto;
+    align-self: center;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 10px 10px 0 0;
+    background: var(--panel);
+    color: var(--muted);
+    padding: 6px 16px;
+    font-size: 12px;
+    cursor: pointer;
+    font-variant-numeric: tabular-nums;
+  }
+  .api-tray-handle:hover { color: var(--text); border-color: var(--accent); }
+  .api-tray-handle .chev { margin-left: 4px; }
+  .api-tray-body {
+    pointer-events: auto;
+    display: none;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    max-height: 40vh;
+    overflow-y: auto;
+    padding: 6px 16px 10px;
+  }
+  .api-tray.open .api-tray-body { display: block; }
+  .api-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .api-row:last-child { border-bottom: none; }
+  .api-row .api-method { color: var(--muted); width: 36px; flex: 0 0 auto; }
+  .api-row .api-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .api-row .api-status { width: 44px; text-align: right; flex: 0 0 auto; }
+  .api-row .api-ms { width: 64px; text-align: right; color: var(--muted); flex: 0 0 auto; }
+  .api-row.ok .api-status { color: var(--ok); }
+  .api-row.err .api-status { color: var(--urgent); }
+  .api-row.pending .api-status { color: var(--accent); }
+
   .banner {
     border-radius: 10px;
     padding: 12px 14px;
@@ -340,10 +465,28 @@
   <main id="app"></main>
 
   <footer>
-    Shortcut Nudger · target column = right-most <b id="footPrefix"></b>* · urgent label = <b id="footUrgent"></b>
+    Shortcut Nudger · role <b id="footPrefix"></b> · next = furthest-along ticket across its columns · urgent label = <b id="footUrgent"></b>
     · <a href="#" id="resetToken">reset token</a>
     · <span id="appVersion"></span>
   </footer>
+</div>
+
+<!-- Manage Teammates modal (rule #6) — plain hidden div toggled by .open -->
+<div id="manageModal" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Manage Teammates</h3>
+      <button class="tiny ghost" id="closeManage">Close ✕</button>
+    </div>
+    <input type="text" id="manageFilter" placeholder="Filter by name…" autocomplete="off" spellcheck="false" />
+    <div class="modal-list" id="manageList"></div>
+  </div>
+</div>
+
+<!-- API log tray (rule #9) — session-only, token redacted -->
+<div id="apiTray" class="api-tray">
+  <button class="api-tray-handle" id="apiTrayHandle">Shortcut API</button>
+  <div class="api-tray-body" id="apiTrayBody"></div>
 </div>
 
 <script>
@@ -351,7 +494,7 @@
  * CONFIG — tweak these to change behaviour. No build step, no dependencies.
  * ========================================================================== */
 const CONFIG = {
-  VERSION: "1.0.0",           // app version shown in footer; bump by hand per release
+  VERSION: "1.1.0",           // app version shown in footer; bump by hand per release
   COLUMN_PREFIX: "Dev",       // FALLBACK SEED ONLY — used to seed the role when nothing is detected/stored.
                               //   Live targets now come from detected roles (Story 3/4), not this key.
   URGENT_LABEL: "urgent",     // stories carrying this label jump the queue
@@ -359,9 +502,11 @@ const CONFIG = {
   STALE_DAYS: 3,              // a ticket sat this many days in its column gets the "stale" highlight
   API_BASE: "https://api.app.shortcut.com/api/v3",
   TOKEN_KEY: "shortcut_nudger_token",
-  VIEW_MEMBER_KEY: "shortcut_nudger_view_member", // persists the member whose queue you're viewing (FT-1)
-  MODE_KEY: "shortcut_nudger_mode",               // persists "me" | "team" view mode (FT-2)
-  ROLE_KEY: "shortcut_nudger_role",               // persists the selected global role (Story 3)
+  VIEW_MEMBER_KEY: "shortcut_nudger_view_member", // persists the teammate whose queue you view (My Teammates tab)
+  TAB_KEY: "shortcut_nudger_tab",                 // persists the active tab (replaces the old MODE_KEY)
+  ROLE_KEY: "shortcut_nudger_role",               // persists the My Queue role (also the global fallback role)
+  ROLEVIEW_KEY: "shortcut_nudger_roleview",       // persists the Role Manager's viewed role
+  TEAM_KEY: "shortcut_nudger_team",               // persists the Team Manager's selected team
   MEMBER_ROLES_KEY: "shortcut_nudger_member_roles", // persists per-member role assignments (Story 4)
 };
 
@@ -378,47 +523,25 @@ const CONFIG = {
 const ROLE_STATE_RE = /^(.+?)\s*\(([^)]+)\)\s*$/;
 
 /**
- * Pick the target workflow state: the right-most (highest position) state,
- * across all workflows, whose name starts with `prefix` (case-insensitive),
- * excluding "done"-type (completed) states.
- * @returns {object|null} the chosen state, or null if none match.
- */
-function pickTargetState(workflows, prefix) {
-  const p = prefix.toLowerCase();
-  const candidates = [];
-  for (const wf of workflows || []) {
-    for (const st of wf.states || []) {
-      const name = (st.name || "").toLowerCase();
-      if (name.startsWith(p) && st.type !== "done") {
-        candidates.push({ ...st, workflow_id: wf.id, workflow_name: wf.name });
-      }
-    }
-  }
-  if (candidates.length === 0) return null;
-  // Right-most = highest board position.
-  candidates.sort((a, b) => (b.position ?? 0) - (a.position ?? 0));
-  return candidates[0];
-}
-
-/**
- * Scan every workflow state name for the `Role (Stage)` pattern, collect the
- * distinct role names, and compute each role's target state via the existing
- * pickTargetState() (reusing its right-most/non-done logic). Roles whose target
- * is null (only done-type states) are excluded.
- * @returns {{ roles: string[], byRole: Map<string, object> }} roles sorted A→Z.
+ * Scan every workflow state for the `Role (Stage)` pattern and bucket the
+ * non-done states by role name (group 1, trimmed). Matching is by exact role
+ * equality, so role "Dev" does NOT swallow "DevOps (Ready)". Each state is
+ * augmented with its workflow id/name. Roles with no non-done columns are
+ * excluded. A role's target is therefore ALL of its non-done columns.
+ * @returns {{ roles: string[], byRole: Map<string, object[]> }} roles sorted A→Z,
+ *   each mapped to the full array of its target state objects.
  */
 function detectRoles(workflows) {
-  const names = new Set();
+  const byRole = new Map();
   for (const wf of workflows || []) {
     for (const st of wf.states || []) {
       const m = ROLE_STATE_RE.exec(st.name || "");
-      if (m) names.add(m[1].trim());
+      if (!m || st.type === "done") continue; // ignore non-role + completed columns
+      const role = m[1].trim();
+      const arr = byRole.get(role) || [];
+      arr.push({ ...st, workflow_id: wf.id, workflow_name: wf.name });
+      byRole.set(role, arr);
     }
-  }
-  const byRole = new Map();
-  for (const role of names) {
-    const target = pickTargetState(workflows, role); // reuse right-most/non-done logic
-    if (target) byRole.set(role, target);
   }
   const roles = [...byRole.keys()].sort((a, b) => a.localeCompare(b));
   return { roles, byRole };
@@ -426,34 +549,36 @@ function detectRoles(workflows) {
 
 /**
  * Resolve the array of target state objects for a selected role.
- *  - A normal role → [byRole.get(role)] (empty if unknown/null).
- *  - "Planner" → every role's target, deduped by state id.
+ *  - A normal role → byRole.get(role) (all its non-done columns; empty if unknown).
+ *  - "Planner" → every role's columns, flattened and deduped by state id.
  * @returns {object[]}
  */
 function resolveTargets(detected, roleName) {
   const byRole = (detected && detected.byRole) || new Map();
   if (roleName === "Planner") {
     const seen = new Map();
-    for (const st of byRole.values()) {
-      if (st && !seen.has(st.id)) seen.set(st.id, st);
+    for (const arr of byRole.values()) {
+      for (const st of arr || []) {
+        if (st && !seen.has(st.id)) seen.set(st.id, st);
+      }
     }
     return [...seen.values()];
   }
-  const st = byRole.get(roleName);
-  return st ? [st] : [];
+  return byRole.get(roleName) || [];
 }
 
 /**
  * Build a stateRank map `{ [stateId]: rank }` from an array of target state
- * objects, ranking by ascending board `position`. Used for cross-column sorting
- * when a pick spans multiple columns (Planner / mixed-role team). Pure.
+ * objects, ranking by DESCENDING board `position` so rank 0 = most-advanced
+ * column. Used for cross-column sorting when a pick spans multiple columns
+ * (a role's own stages, Planner, or a mixed-role team). Pure.
  * @returns {Object<string|number, number>}
  */
 function stateRankFromTargets(targets) {
   const rank = {};
   (targets || [])
     .slice()
-    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+    .sort((a, b) => (b.position ?? 0) - (a.position ?? 0)) // most-advanced first
     .forEach((st, i) => { if (st) rank[st.id] = i; });
   return rank;
 }
@@ -508,6 +633,64 @@ function pickNext(stories, myId, targetStateIds, urgentLabel, stateRank) {
   });
 
   return { next: sorted[0] || null, queue: sorted.slice(1), all: sorted };
+}
+
+/** True if a state's stage (group 2 of `Role (Stage)`) matches /paused/i. */
+function isPausedState(st) {
+  if (!st || !st.name) return false;
+  const m = ROLE_STATE_RE.exec(st.name);
+  return !!m && /paused/i.test(m[2]);
+}
+
+/**
+ * Paused-aware ranking for one member in one role. Composes pickNext() over the
+ * non-paused and paused subsets of a role's target columns — it does NOT
+ * re-implement filtering/ranking.
+ *
+ * Rules encoded:
+ *  - `next`/`queue` are drawn ONLY from the non-paused base, so a paused ticket
+ *    is never surfaced as "next" (even if urgent).
+ *  - Paused tickets surface (in `paused`) ONLY when the member has no non-paused
+ *    ticket strictly MORE advanced than the entry/"Ready" column — then they
+ *    appear alongside the top entry ticket. Strict `>` means a member whose only
+ *    work is a Ready ticket still sees their paused item.
+ * @returns {{ next: object|null, queue: object[], paused: object[], all: object[] }}
+ */
+function pickNextPaused(stories, memberId, roleTargets, urgentLabel) {
+  const targets = roleTargets || [];
+  const paused    = targets.filter(isPausedState);
+  const nonPaused = targets.filter((st) => !isPausedState(st));
+
+  const npRank   = stateRankFromTargets(nonPaused);
+  const fullRank = stateRankFromTargets(targets);
+
+  const base       = pickNext(stories, memberId, nonPaused.map((s) => s.id), urgentLabel, npRank);
+  const pausedPick = pickNext(stories, memberId, paused.map((s) => s.id), urgentLabel, fullRank);
+
+  // entry column = least-advanced (min position) non-paused target
+  const entryPos = nonPaused.length ? Math.min(...nonPaused.map((s) => s.position ?? 0)) : -Infinity;
+  // active work = a non-paused ticket strictly MORE advanced than the entry column
+  const hasActiveWork = base.all.some((s) => {
+    const st = nonPaused.find((t) => t.id === s.workflow_state_id);
+    return st && (st.position ?? 0) > entryPos;
+  });
+
+  const surfaced = hasActiveWork ? [] : pausedPick.all;
+  return { next: base.next, queue: base.queue, paused: surfaced, all: base.all };
+}
+
+/**
+ * Flat `{ [stateId]: stateName }` lookup spanning every workflow's states, so a
+ * queue row can resolve its `Role (Stage)` name (even Planner's cross-column
+ * items). Pure.
+ * @returns {Object<string|number, string>}
+ */
+function buildStateNameById(workflows) {
+  const map = {};
+  for (const wf of workflows || [])
+    for (const st of wf.states || [])
+      if (st && st.id != null) map[st.id] = st.name || "";
+  return map;
 }
 
 /**
@@ -576,6 +759,17 @@ function withToken(rawUrl, token) {
   return u.toString();
 }
 
+/** Display path for the API tray: method-friendly path + query, token stripped. */
+function apiDisplayPath(url) {
+  try {
+    const u = new URL(url);
+    u.searchParams.delete("token");
+    return u.pathname + (u.search || "");
+  } catch { return String(url); }
+}
+
+let apiLogSeq = 0;
+
 async function apiFetch(pathOrUrl, token) {
   const base = pathOrUrl.startsWith("http")
     ? pathOrUrl
@@ -583,19 +777,45 @@ async function apiFetch(pathOrUrl, token) {
       ? API_ORIGIN + pathOrUrl
       : CONFIG.API_BASE + pathOrUrl;
 
-  // No custom headers → simple request → no preflight.
-  const res = await fetch(withToken(base, token));
+  // API log entry (session-only, token redacted). `state` exists by call time.
+  const entry = {
+    id: ++apiLogSeq,
+    method: "GET",
+    path: apiDisplayPath(base),
+    status: null,
+    startedAt: Date.now(),
+    ms: null,
+  };
+  if (typeof state !== "undefined" && state.apiLog) {
+    state.apiLog.unshift(entry);
+    if (state.apiLog.length > 200) state.apiLog.length = 200;
+    apiTrayRender();
+  }
 
-  if (res.status === 401 || res.status === 403) {
-    const err = new Error("Token rejected (401/403). Check that your API token is valid.");
-    err.code = "AUTH";
-    throw err;
+  try {
+    // No custom headers → simple request → no preflight.
+    const res = await fetch(withToken(base, token));
+    entry.status = res.status;
+    entry.ms = Date.now() - entry.startedAt;
+    apiTrayRender();
+
+    if (res.status === 401 || res.status === 403) {
+      const err = new Error("Token rejected (401/403). Check that your API token is valid.");
+      err.code = "AUTH";
+      throw err;
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Shortcut API ${res.status}: ${body.slice(0, 200) || res.statusText}`);
+    }
+    return res.json();
+  } catch (e) {
+    if (entry.status === null) entry.status = "ERR";
+    if (entry.ms === null) entry.ms = Date.now() - entry.startedAt;
+    entry.error = e.message || String(e);
+    apiTrayRender();
+    throw e;
   }
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Shortcut API ${res.status}: ${body.slice(0, 200) || res.statusText}`);
-  }
-  return res.json();
 }
 
 /** Current member tied to the token → identity, no name entry needed. */
@@ -665,18 +885,28 @@ const bannerEl = document.getElementById("banner");
 let pollTimer = null;
 let state = {
   tokenMember: null,   // the token owner (identity / "reset to me")
-  viewMember: null,    // whose queue is shown in personal mode (defaults to tokenMember)
-  mode: "me",          // "me" | "team"
+  viewMember: null,    // whose personal queue is currently rendered (My Queue / My Teammates)
+  tab: "myqueue",      // "myqueue" | "teammates" | "team" | "role"
   members: [],         // cached member lookup (fetched once per boot)
   groups: [],          // cached team lookup (fetched once per boot)
   target: null,        // representative target state (for meta display)
   detectedRoles: { roles: [], byRole: new Map() }, // detectRoles() result (Story 3)
-  role: "",            // selected global role (Story 3)
+  role: "",            // canonical GLOBAL FALLBACK role (mirrors myRole; used by memberRoles[id] || role)
+  myRole: "",          // My Queue role (ROLE_KEY)
+  teammateId: "",      // My Teammates viewed member (VIEW_MEMBER_KEY)
+  teamId: "",          // Team Manager selected team (TEAM_KEY)
+  roleView: "",        // Role Manager viewed role (ROLEVIEW_KEY)
+  roleShowOthers: false, // Role Manager: reveal teammates in other roles (session-only)
+  stateNameById: {},   // flat { stateId: name } lookup for queue-row state chips
   stateRank: {},       // cross-column rank cache for the active target set
   memberRoles: {},     // { memberId: role } per-person overrides (Story 4)
+  apiLog: [],          // session-only API call log for the tray
   lastRefreshed: null,
   loading: false,
 };
+
+/** Synthetic team id for the "No team" bucket in the Team Manager picker. */
+const NO_TEAM_ID = "__noteam__";
 
 function getToken() { return localStorage.getItem(CONFIG.TOKEN_KEY) || ""; }
 function setToken(t) { localStorage.setItem(CONFIG.TOKEN_KEY, t.trim()); }
@@ -685,14 +915,23 @@ function clearToken() { localStorage.removeItem(CONFIG.TOKEN_KEY); }
 function getStoredViewMemberId() { return localStorage.getItem(CONFIG.VIEW_MEMBER_KEY) || ""; }
 function setStoredViewMemberId(id) { localStorage.setItem(CONFIG.VIEW_MEMBER_KEY, String(id)); }
 
-function getStoredMode() {
-  const m = localStorage.getItem(CONFIG.MODE_KEY);
-  return m === "team" ? "team" : "me";
+const TAB_VALUES = ["myqueue", "teammates", "team", "role"];
+function getStoredTab() {
+  // Validate against the 4 known tabs so a legacy "me"/"team" MODE_KEY value (or
+  // anything stale) migrates cleanly to the default.
+  const t = localStorage.getItem(CONFIG.TAB_KEY);
+  return TAB_VALUES.includes(t) ? t : "myqueue";
 }
-function setStoredMode(m) { localStorage.setItem(CONFIG.MODE_KEY, m); }
+function setStoredTab(t) { localStorage.setItem(CONFIG.TAB_KEY, t); }
 
 function getStoredRole() { return localStorage.getItem(CONFIG.ROLE_KEY) || ""; }
 function setStoredRole(r) { localStorage.setItem(CONFIG.ROLE_KEY, String(r)); }
+
+function getStoredRoleView() { return localStorage.getItem(CONFIG.ROLEVIEW_KEY) || ""; }
+function setStoredRoleView(r) { localStorage.setItem(CONFIG.ROLEVIEW_KEY, String(r)); }
+
+function getStoredTeamId() { return localStorage.getItem(CONFIG.TEAM_KEY) || ""; }
+function setStoredTeamId(id) { localStorage.setItem(CONFIG.TEAM_KEY, String(id)); }
 
 function getStoredMemberRoles() {
   try {
@@ -710,6 +949,30 @@ function roleColumnLabel(roleName) {
   if (roleName === "Planner") return `Planner (${targets.length} columns)`;
   if (!targets.length) return roleName || "?";
   return targets.map((t) => t.name).join(", ");
+}
+
+/** The member currently viewed on the My Teammates tab (defaults to token owner). */
+function currentTeammate() {
+  const id = state.teammateId;
+  const found = id ? state.members.find((m) => String(m.id) === String(id)) : null;
+  return found || state.tokenMember;
+}
+
+/** Workflow-state chip for a queue row, using the flat stateNameById lookup. */
+function stateChip(story) {
+  const name = state.stateNameById[story.workflow_state_id];
+  if (!name) return "";
+  return `<span class="state-chip" title="Workflow state">${esc(name)}</span>`;
+}
+
+/** Per-member role override <select> (blank/"—" = use the global fallback role). */
+function memberRoleSelectHtml(memberId) {
+  const assigned = state.memberRoles[memberId] || "";
+  const opts = ['<option value=""' + (assigned ? "" : " selected") + ">&mdash;</option>"]
+    .concat(state.detectedRoles.roles.map((r) =>
+      `<option value="${esc(r)}"${r === assigned ? " selected" : ""}>${esc(r)}</option>`))
+    .join("");
+  return `<select class="member-role" data-member="${esc(memberId)}">${opts}</select>`;
 }
 
 function esc(s) {
@@ -771,7 +1034,7 @@ function renderMeta() {
   metaBar.innerHTML = `
     <span>role <b>${esc(roleLabel)}</b></span>
     <span><b>${esc(state.tokenMember.name)}</b></span>
-    <span>column <b>${esc(colLabel)}</b></span>
+    <span>columns <b>${esc(colLabel)}</b></span>
     <span>updated <b>${t}</b>${state.loading ? ' <span class="spin">↻</span>' : ""}</span>
     <button class="tiny ghost" id="refreshBtn">Refresh</button>
   `;
@@ -784,80 +1047,115 @@ function renderMeta() {
   if (fp) fp.textContent = state.role || CONFIG.COLUMN_PREFIX;
 }
 
+/** A role <select> (detected roles + synthetic "Planner"). */
+function roleSelectHtml(id, current, label) {
+  const roleOptions = [...state.detectedRoles.roles, "Planner"]
+    .map((r) => `<option value="${esc(r)}"${r === current ? " selected" : ""}>${esc(r)}</option>`)
+    .join("");
+  return `
+    <div class="switcher">
+      <label for="${id}" class="viewing-hint">${esc(label || "Role")}</label>
+      <select id="${id}">${roleOptions}</select>
+    </div>`;
+}
+
+/** My Teammates selector: a member dropdown + a "viewing (not you)" hint. */
+function teammateSelectHtml() {
+  const tm = currentTeammate();
+  const opts = state.members
+    .map((m) => {
+      const sel = String(m.id) === String(tm.id) ? " selected" : "";
+      const you = m.id === state.tokenMember.id ? " (you)" : "";
+      return `<option value="${esc(m.id)}"${sel}>${esc(m.name)}${you}</option>`;
+    })
+    .join("");
+  let html = `
+    <div class="switcher">
+      <label for="teammateSelect" class="viewing-hint">Viewing</label>
+      <select id="teammateSelect">${opts}</select>
+    </div>`;
+  if (tm.id !== state.tokenMember.id) {
+    html += `<span class="viewing-hint">Viewing <b>${esc(tm.name)}</b> (not you)<a href="#" class="reset" id="resetMe">reset to me</a></span>`;
+  }
+  return html;
+}
+
+/** Team Manager selector: teams grouped My teams / All teams, + a No team bucket. */
+function teamSelectHtml() {
+  const myId = state.tokenMember.id;
+  const sorted = state.groups.slice().sort((a, b) => a.name.localeCompare(b.name));
+  const mine = sorted.filter((g) => g.member_ids.includes(myId));
+  const others = sorted.filter((g) => !g.member_ids.includes(myId));
+  const optFor = (g) =>
+    `<option value="${esc(g.id)}"${String(g.id) === String(state.teamId) ? " selected" : ""}>${esc(g.name)}</option>`;
+  let opts = "";
+  if (mine.length) opts += `<optgroup label="My teams">${mine.map(optFor).join("")}</optgroup>`;
+  const allOthers = others.concat([{ id: NO_TEAM_ID, name: "No team", member_ids: [] }]);
+  opts += `<optgroup label="All teams">${allOthers.map(optFor).join("")}</optgroup>`;
+  return `
+    <div class="switcher">
+      <label for="teamSelect" class="viewing-hint">Team</label>
+      <select id="teamSelect">${opts}</select>
+    </div>`;
+}
+
 /**
- * Controls row: mode toggle (My Queue / Team Manager) and, in personal mode,
- * a member switcher + "viewing someone else" hint. Returns HTML; call
- * wireControls() after inserting it into the DOM.
+ * Controls row: a 4-tab strip plus ONLY the active tab's selector(s), and the
+ * Manage Teammates admin button. Returns HTML; call wireControls() after insert.
  */
 function controlsHtml() {
   if (!state.tokenMember) return "";
-  const modeToggle = `
-    <div class="mode-toggle">
-      <button data-mode="me" class="${state.mode === "me" ? "active" : ""}">My Queue</button>
-      <button data-mode="team" class="${state.mode === "team" ? "active" : ""}">Team Manager</button>
-    </div>`;
+  const tabs = [
+    ["myqueue", "My Queue"],
+    ["teammates", "My Teammates"],
+    ["team", "Team Manager"],
+    ["role", "Role Manager"],
+  ];
+  const tabStrip = `<div class="tabs">${tabs
+    .map(([v, l]) => `<button data-tab="${v}" class="${state.tab === v ? "active" : ""}">${l}</button>`)
+    .join("")}</div>`;
 
-  // Role picker: detected concrete roles + "Planner" (all columns).
-  const roleOptions = [...state.detectedRoles.roles, "Planner"]
-    .map((r) => `<option value="${esc(r)}"${r === state.role ? " selected" : ""}>${esc(r)}</option>`)
-    .join("");
-  const roleSelect = `
-    <div class="switcher">
-      <label for="roleSelect" class="viewing-hint">Role</label>
-      <select id="roleSelect">${roleOptions}</select>
-    </div>`;
+  let selectors = "";
+  if (state.tab === "myqueue") selectors = roleSelectHtml("myRoleSelect", state.myRole, "Role");
+  else if (state.tab === "teammates") selectors = teammateSelectHtml();
+  else if (state.tab === "team") selectors = teamSelectHtml();
+  else if (state.tab === "role") selectors = roleSelectHtml("roleViewSelect", state.roleView, "Role");
 
-  let switcher = "";
-  if (state.mode === "me" && state.members.length) {
-    const opts = state.members
-      .map((m) => {
-        const sel = state.viewMember && m.id === state.viewMember.id ? " selected" : "";
-        const you = m.id === state.tokenMember.id ? " (you)" : "";
-        return `<option value="${esc(m.id)}"${sel}>${esc(m.name)}${you}</option>`;
-      })
-      .join("");
-    switcher = `
-      <div class="switcher">
-        <label for="memberSelect" class="viewing-hint">Viewing</label>
-        <select id="memberSelect">${opts}</select>
-      </div>`;
-    if (state.viewMember && state.viewMember.id !== state.tokenMember.id) {
-      switcher += `<span class="viewing-hint">Viewing <b>${esc(state.viewMember.name)}</b> (not you)<a href="#" class="reset" id="resetMe">reset to me</a></span>`;
-    }
-  }
-  return `<div class="controls">${modeToggle}${roleSelect}${switcher}</div>`;
+  const admin = `<button class="tiny ghost" id="manageTeammatesBtn" style="margin-left:auto">Manage Teammates</button>`;
+  return `<div class="controls">${tabStrip}${selectors}${admin}</div>`;
 }
 
 function wireControls() {
-  document.querySelectorAll(".mode-toggle button[data-mode]").forEach((btn) => {
+  document.querySelectorAll(".tabs button[data-tab]").forEach((btn) => {
     btn.onclick = () => {
-      const m = btn.getAttribute("data-mode");
-      if (m === state.mode) return;
-      state.mode = m;
-      setStoredMode(m);
+      const t = btn.getAttribute("data-tab");
+      if (t === state.tab) return;
+      state.tab = t;
+      setStoredTab(t);
       refresh(true);
     };
   });
-  const roleSel = document.getElementById("roleSelect");
-  if (roleSel) {
-    roleSel.onchange = () => {
-      state.role = roleSel.value;
-      setStoredRole(state.role);
-      refresh(true);
-    };
-  }
-  const sel = document.getElementById("memberSelect");
-  if (sel) {
-    sel.onchange = () => {
-      const m = state.members.find((x) => String(x.id) === sel.value);
-      if (m) { state.viewMember = m; setStoredViewMemberId(m.id); refresh(true); }
-    };
-  }
+
+  const myRole = document.getElementById("myRoleSelect");
+  if (myRole) myRole.onchange = () => { state.myRole = myRole.value; setStoredRole(state.myRole); refresh(true); };
+
+  const roleView = document.getElementById("roleViewSelect");
+  if (roleView) roleView.onchange = () => { state.roleView = roleView.value; setStoredRoleView(state.roleView); refresh(true); };
+
+  const teammate = document.getElementById("teammateSelect");
+  if (teammate) teammate.onchange = () => { state.teammateId = teammate.value; setStoredViewMemberId(teammate.value); refresh(true); };
+
+  const team = document.getElementById("teamSelect");
+  if (team) team.onchange = () => { state.teamId = team.value; setStoredTeamId(team.value); refresh(true); };
+
+  const manage = document.getElementById("manageTeammatesBtn");
+  if (manage) manage.onclick = () => openManageModal();
+
   const reset = document.getElementById("resetMe");
   if (reset) {
     reset.onclick = (e) => {
       e.preventDefault();
-      state.viewMember = state.tokenMember;
+      state.teammateId = String(state.tokenMember.id);
       setStoredViewMemberId(state.tokenMember.id);
       refresh(true);
     };
@@ -899,19 +1197,22 @@ function renderSetup(prefillError) {
   input.focus();
 }
 
-function renderResult(next, queue, targetState, nowMs) {
+function renderResult(next, queue, paused, roleName, viewMember, nowMs) {
+  viewMember = viewMember || state.tokenMember;
+  paused = paused || [];
   const urgent = next && hasUrgentLabel(next, CONFIG.URGENT_LABEL);
-  const viewingOther = state.viewMember && state.tokenMember && state.viewMember.id !== state.tokenMember.id;
-  const whose = viewingOther ? `${esc(state.viewMember.name)}'s` : "your";
+  const viewingOther = viewMember && state.tokenMember && viewMember.id !== state.tokenMember.id;
+  const whose = viewingOther ? `${esc(viewMember.name)}'s` : "your";
 
   let html = controlsHtml();
 
-  if (!next) {
-    const colText = roleColumnLabel(state.role);
+  // Fully empty: no next, no queue, no surfaced paused.
+  if (!next && !queue.length && !paused.length) {
+    const colText = roleColumnLabel(roleName);
     html += `
       <div class="empty">
         <div class="big">🎉</div>
-        <div>Nothing assigned to ${viewingOther ? `<b>${esc(state.viewMember.name)}</b>` : "you"} in <b>${esc(colText)}</b>.</div>
+        <div>Nothing assigned to ${viewingOther ? `<b>${esc(viewMember.name)}</b>` : "you"} in <b>${esc(colText)}</b>.</div>
         <div class="muted" style="margin-top:6px">${viewingOther ? "Their column is clear." : "Enjoy the breather — or grab something from the board."}</div>
       </div>`;
     app.innerHTML = html;
@@ -919,19 +1220,21 @@ function renderResult(next, queue, targetState, nowMs) {
     return;
   }
 
-  html += `
-    <div class="next-card${urgent ? " is-urgent" : ""}">
-      <div class="kicker">${urgent ? "🔥 Urgent — work on this next" : "Work on this next"}</div>
-      <h2 class="story-name">${esc(next.name)}</h2>
-      <div class="story-id">${esc(storyIdLabel(next))}</div>
-      ${timingBadges(next, nowMs)}
-      <div class="row" style="justify-content:space-between; margin-top:12px">
-        ${labelChips(next) || "<span></span>"}
-        <a href="${esc(next.app_url || "#")}" target="_blank" rel="noopener">
-          <button class="primary">Open in Shortcut ↗</button>
-        </a>
-      </div>
-    </div>`;
+  if (next) {
+    html += `
+      <div class="next-card${urgent ? " is-urgent" : ""}">
+        <div class="kicker">${urgent ? "🔥 Urgent — work on this next" : "Work on this next"}</div>
+        <h2 class="story-name">${esc(next.name)}</h2>
+        <div class="story-id">${esc(storyIdLabel(next))}</div>
+        ${timingBadges(next, nowMs)}
+        <div class="row" style="justify-content:space-between; margin-top:12px">
+          ${labelChips(next) || "<span></span>"}
+          <a href="${esc(next.app_url || "#")}" target="_blank" rel="noopener">
+            <button class="primary">Open in Shortcut ↗</button>
+          </a>
+        </div>
+      </div>`;
+  }
 
   if (queue.length) {
     html += `<div><p class="section-title">Then (${queue.length}) — ${whose} queue</p><ul class="queue">`;
@@ -942,6 +1245,26 @@ function renderResult(next, queue, targetState, nowMs) {
           <span class="rank">${i + 2}</span>
           <span class="qname" title="${esc(s.name)}">${esc(s.name)}</span>
           ${urg ? '<span class="label urgent">urgent</span>' : ""}
+          ${stateChip(s)}
+          ${timingBadges(s, nowMs)}
+          <a href="${esc(s.app_url || "#")}" target="_blank" rel="noopener">
+            <button class="tiny ghost">Open ↗</button>
+          </a>
+        </li>`;
+    });
+    html += `</ul></div>`;
+  }
+
+  // Surfaced paused tickets — visually secondary, never "next" (even if urgent).
+  if (paused.length) {
+    html += `<div><p class="section-title">Paused (${paused.length}) — waiting on someone else</p><ul class="queue">`;
+    paused.forEach((s) => {
+      html += `
+        <li class="paused-row">
+          <span class="rank">⏸</span>
+          <span class="qname" title="${esc(s.name)}">${esc(s.name)}</span>
+          <span class="paused-chip">Paused</span>
+          ${stateChip(s)}
           ${timingBadges(s, nowMs)}
           <a href="${esc(s.app_url || "#")}" target="_blank" rel="noopener">
             <button class="tiny ghost">Open ↗</button>
@@ -962,33 +1285,39 @@ function domId(...parts) {
   return "mq_" + parts.map((p) => String(p).replace(/[^\w-]/g, "_")).join("_");
 }
 
-/** One member's Now / Next / expandable-rest block. */
+/** One member's Now / Next / Paused / expandable-rest block. */
 function memberRowHtml(member, pick, nowMs, uid) {
-  const now = pick.next;
+  const pausedAll = (pick.paused || []).slice();
+  let now = pick.next;
+  let nowIsPaused = false;
+  // No non-paused work but a paused ticket surfaced → show it as the "Now" item.
+  if (!now && pausedAll.length) {
+    now = pausedAll.shift();
+    nowIsPaused = true;
+  }
+
   const nextItem = pick.queue[0] || null;
   const rest = pick.queue.slice(1);
-  const nowUrgent = now && hasUrgentLabel(now, CONFIG.URGENT_LABEL);
-
-  // Per-member role override select (concrete roles only; blank = use global).
-  const assigned = state.memberRoles[member.id] || "";
-  const roleOpts = ['<option value=""' + (assigned ? "" : " selected") + '>&mdash;</option>']
-    .concat(state.detectedRoles.roles.map((r) =>
-      `<option value="${esc(r)}"${r === assigned ? " selected" : ""}>${esc(r)}</option>`))
-    .join("");
+  const nowUrgent = now && !nowIsPaused && hasUrgentLabel(now, CONFIG.URGENT_LABEL);
 
   let html = `
     <div class="member-row">
-      <div class="who">${esc(member.name)}${member.mention_name ? `<span class="mention">@${esc(member.mention_name)}</span>` : ""}<select class="member-role" data-member="${esc(member.id)}" style="margin-left:10px">${roleOpts}</select></div>
-      <div class="nn${nowUrgent ? " urgent" : ""}">
-        <span class="tag">Now</span>
+      <div class="who">${esc(member.name)}${member.mention_name ? `<span class="mention">@${esc(member.mention_name)}</span>` : ""}<span style="margin-left:10px">${memberRoleSelectHtml(member.id)}</span></div>`;
+
+  if (now) {
+    html += `
+      <div class="nn${nowUrgent ? " urgent" : ""}${nowIsPaused ? " paused-line" : ""}">
+        <span class="tag">${nowIsPaused ? "Paused" : "Now"}</span>
         <span class="item">
           <div class="row" style="gap:8px">
             <a class="iname" href="${esc(now.app_url || "#")}" target="_blank" rel="noopener" title="${esc(now.name)}">${esc(now.name)}</a>
-            ${nowUrgent ? '<span class="label urgent">urgent</span>' : ""}
+            ${nowIsPaused ? '<span class="paused-chip">Paused</span>' : nowUrgent ? '<span class="label urgent">urgent</span>' : ""}
+            ${stateChip(now)}
           </div>
           ${timingBadges(now, nowMs)}
         </span>
       </div>`;
+  }
 
   if (nextItem) {
     const nu = hasUrgentLabel(nextItem, CONFIG.URGENT_LABEL);
@@ -998,9 +1327,23 @@ function memberRowHtml(member, pick, nowMs, uid) {
         <span class="item">
           <a class="iname" href="${esc(nextItem.app_url || "#")}" target="_blank" rel="noopener" title="${esc(nextItem.name)}">${esc(nextItem.name)}</a>
           ${nu ? ' <span class="label urgent">urgent</span>' : ""}
+          ${stateChip(nextItem)}
         </span>
       </div>`;
   }
+
+  // Any remaining surfaced paused tickets (beyond one shown as "Now").
+  pausedAll.forEach((s) => {
+    html += `
+      <div class="nn paused-line">
+        <span class="tag">Paused</span>
+        <span class="item">
+          <a class="iname" href="${esc(s.app_url || "#")}" target="_blank" rel="noopener" title="${esc(s.name)}">${esc(s.name)}</a>
+          <span class="paused-chip">Paused</span>
+          ${stateChip(s)}
+        </span>
+      </div>`;
+  });
 
   if (rest.length) {
     html += `<button class="more-toggle" data-target="${uid}">${rest.length} more assigned ▸</button>`;
@@ -1012,6 +1355,7 @@ function memberRowHtml(member, pick, nowMs, uid) {
           <span class="rank">${i + 3}</span>
           <span class="qname" title="${esc(s.name)}">${esc(s.name)}</span>
           ${urg ? '<span class="label urgent">urgent</span>' : ""}
+          ${stateChip(s)}
           ${timingBadges(s, nowMs)}
           <a href="${esc(s.app_url || "#")}" target="_blank" rel="noopener">
             <button class="tiny ghost">Open ↗</button>
@@ -1033,7 +1377,8 @@ function teamSectionHtml(name, key, memberIds, byId, pickFor, nowMs) {
     const member = byId.get(id);
     if (!member) return;
     const pick = pickFor(id);
-    if (pick.all.length) working.push({ member, pick });
+    // Count surfaced paused too, so a member with only a paused ticket shows.
+    if (pick.next || pick.queue.length || (pick.paused && pick.paused.length)) working.push({ member, pick });
     else idle++;
   });
   if (!working.length && !idle) return "";
@@ -1049,49 +1394,34 @@ function teamSectionHtml(name, key, memberIds, byId, pickFor, nowMs) {
   return html;
 }
 
-function renderTeamManager(groups, members, stories, target, nowMs) {
-  const byId = new Map(members.map((m) => [m.id, m]));
-
-  // pickNext is memoized per member so a multi-team member isn't recomputed.
-  // Each member's role = their assignment in state.memberRoles, else the global
-  // role. Resolve that role's target set + cross-column rank per member.
+/** Per-member paused-aware pick, memoized. Role = override, else global fallback. */
+function makePickFor(stories) {
   const picks = new Map();
-  const pickFor = (id) => {
+  return (id) => {
     if (!picks.has(id)) {
       const role = state.memberRoles[id] || state.role;
       const targets = resolveTargets(state.detectedRoles, role);
-      const ids = targets.map((t) => t.id);
-      const rank = stateRankFromTargets(targets);
-      picks.set(id, pickNext(stories, id, ids, CONFIG.URGENT_LABEL, rank));
+      picks.set(id, pickNextPaused(stories, id, targets, CONFIG.URGENT_LABEL));
     }
     return picks.get(id);
   };
+}
+
+/** Render a single selected team's members (Now / Next / Paused / rest). */
+function renderTeamManager(team, members, stories, nowMs) {
+  const byId = new Map(members.map((m) => [m.id, m]));
+  const pickFor = makePickFor(stories);
 
   let html = controlsHtml();
-  const sections = [];
-
-  groups
-    .slice()
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .forEach((g) => {
-      const ids = g.member_ids.filter((id) => byId.has(id));
-      sections.push(teamSectionHtml(g.name, g.id, ids, byId, pickFor, nowMs));
-    });
-
-  // "No team" bucket: active members belonging to no active group.
-  const grouped = new Set();
-  groups.forEach((g) => g.member_ids.forEach((id) => grouped.add(id)));
-  const noTeamIds = members.filter((m) => !grouped.has(m.id)).map((m) => m.id);
-  sections.push(teamSectionHtml("No team", "noteam", noTeamIds, byId, pickFor, nowMs));
-
-  const body = sections.filter(Boolean).join("");
-  if (body) {
-    html += body;
+  const ids = team.member_ids.filter((id) => byId.has(id));
+  const section = teamSectionHtml(team.name, team.id, ids, byId, pickFor, nowMs);
+  if (section) {
+    html += section;
   } else {
     html += `
       <div class="empty">
         <div class="big">🌤️</div>
-        <div>No tickets in <b>${esc(roleColumnLabel(state.role))}</b> across the workspace.</div>
+        <div>No active work for <b>${esc(team.name)}</b> right now.</div>
       </div>`;
   }
 
@@ -1099,6 +1429,109 @@ function renderTeamManager(groups, members, stories, target, nowMs) {
   wireControls();
   wireTeamToggles();
   wireMemberRoles();
+}
+
+/** Simple admin-style row: name (+ optional suffix) and a role override select. */
+function adminMemberRowHtml(member, suffix) {
+  return `
+    <div class="member-row admin-row">
+      <div class="who">${esc(member.name)}${member.mention_name ? `<span class="mention">@${esc(member.mention_name)}</span>` : ""}${suffix || ""}</div>
+      ${memberRoleSelectHtml(member.id)}
+    </div>`;
+}
+
+/**
+ * Role Manager: everyone assigned to state.roleView (with their Now/Next/Paused),
+ * a Missing Role Assignment list, and a reveal toggle for teammates in other roles.
+ */
+function renderRoleManager(members, stories, nowMs) {
+  const roleView = state.roleView;
+  const targets = resolveTargets(state.detectedRoles, roleView);
+  const picks = new Map();
+  const pickFor = (id) => {
+    if (!picks.has(id)) picks.set(id, pickNextPaused(stories, id, targets, CONFIG.URGENT_LABEL));
+    return picks.get(id);
+  };
+
+  const assigned = [], missing = [], others = [];
+  members.forEach((m) => {
+    const r = state.memberRoles[m.id];
+    if (r === roleView) assigned.push(m);
+    else if (!r) missing.push(m);
+    else others.push(m);
+  });
+  const byName = (a, b) => a.name.localeCompare(b.name);
+
+  let html = controlsHtml();
+
+  html += `<div class="team-section"><h3>${esc(roleView)} <span class="count">${assigned.length} assigned</span></h3>`;
+  if (!assigned.length) {
+    html += `<div class="idle-line">No teammates are assigned to <b>${esc(roleView)}</b>. Assign roles below or via Manage Teammates.</div>`;
+  }
+  assigned.sort(byName).forEach((m) => {
+    html += memberRowHtml(m, pickFor(m.id), nowMs, domId("role", m.id));
+  });
+  html += `</div>`;
+
+  if (missing.length) {
+    html += `<div class="team-section"><h3>Missing Role Assignment <span class="count">${missing.length}</span></h3>`;
+    missing.sort(byName).forEach((m) => { html += adminMemberRowHtml(m); });
+    html += `</div>`;
+  }
+
+  if (others.length) {
+    html += `<button class="more-toggle" id="showOthersToggle">${others.length} Teammates in Other Roles ${state.roleShowOthers ? "▾ Shown" : "▸ Hidden"}</button>`;
+    if (state.roleShowOthers) {
+      html += `<div class="team-section" style="margin-top:12px">`;
+      others.sort(byName).forEach((m) => {
+        const r = state.memberRoles[m.id];
+        html += adminMemberRowHtml(m, `<span class="mention">${esc(r)}</span>`);
+      });
+      html += `</div>`;
+    }
+  }
+
+  app.innerHTML = html;
+  wireControls();
+  wireTeamToggles();
+  wireMemberRoles();
+
+  const ot = document.getElementById("showOthersToggle");
+  if (ot) ot.onclick = () => { state.roleShowOthers = !state.roleShowOthers; renderRoleManager(members, stories, nowMs); };
+}
+
+/* ---- Manage Teammates modal (rule #6) ---- */
+
+function openManageModal() {
+  const modal = document.getElementById("manageModal");
+  if (!modal) return;
+  const filter = document.getElementById("manageFilter");
+  filter.value = "";
+  renderManageList("");
+  filter.oninput = () => renderManageList(filter.value);
+  modal.classList.add("open");
+  filter.focus();
+}
+
+function closeManageModal() {
+  const modal = document.getElementById("manageModal");
+  if (modal) modal.classList.remove("open");
+}
+
+function renderManageList(q) {
+  const list = document.getElementById("manageList");
+  if (!list) return;
+  const term = (q || "").toLowerCase();
+  const rows = state.members.filter((m) =>
+    !term || m.name.toLowerCase().includes(term) || (m.mention_name || "").toLowerCase().includes(term));
+  list.innerHTML = rows.length
+    ? rows.map((m) =>
+        `<div class="manage-row">
+           <span class="who">${esc(m.name)}${m.mention_name ? `<span class="mention">@${esc(m.mention_name)}</span>` : ""}</span>
+           ${memberRoleSelectHtml(m.id)}
+         </div>`).join("")
+    : `<div class="idle-line">No members match “${esc(q)}”.</div>`;
+  wireMemberRoles(); // re-bind the (now newly-rendered) modal selects
 }
 
 function wireMemberRoles() {
@@ -1128,6 +1561,56 @@ function wireTeamToggles() {
   });
 }
 
+/* ---- API log tray (rule #9) — session-only, token redacted ---- */
+
+let apiTrayOpen = false;
+let apiTrayTimer = null;
+
+/** Start/stop the live elapsed-time ticker: only runs while open AND in-flight. */
+function apiTrayTicker() {
+  const anyInflight = (state.apiLog || []).some((e) => e.status === null);
+  if (apiTrayOpen && anyInflight) {
+    if (!apiTrayTimer) apiTrayTimer = setInterval(apiTrayRender, 250);
+  } else if (apiTrayTimer) {
+    clearInterval(apiTrayTimer);
+    apiTrayTimer = null;
+  }
+}
+
+function apiTrayRender() {
+  const tray = document.getElementById("apiTray");
+  const handle = document.getElementById("apiTrayHandle");
+  const body = document.getElementById("apiTrayBody");
+  if (!tray || !handle || !body) return;
+
+  const log = state.apiLog || [];
+  const inflight = log.filter((e) => e.status === null).length;
+  handle.innerHTML =
+    `Shortcut API · ${log.length} call${log.length === 1 ? "" : "s"}` +
+    (inflight ? ` · ${inflight} in-flight ⏱` : "") +
+    ` <span class="chev">${apiTrayOpen ? "▾" : "▸"}</span>`;
+
+  tray.classList.toggle("open", apiTrayOpen);
+  if (apiTrayOpen) {
+    const now = Date.now();
+    body.innerHTML = log.length
+      ? log.slice(0, 100).map((e) => {
+          const ms = e.ms != null ? e.ms : now - e.startedAt;
+          const cls = e.status === null ? "pending" : (e.status === "ERR" || (typeof e.status === "number" && e.status >= 400) ? "err" : "ok");
+          const statusText = e.status === null ? "…" : e.status;
+          return `
+            <div class="api-row ${cls}">
+              <span class="api-method">${esc(e.method)}</span>
+              <span class="api-path" title="${esc(e.path)}${e.error ? " — " + esc(e.error) : ""}">${esc(e.path)}</span>
+              <span class="api-status">${esc(String(statusText))}</span>
+              <span class="api-ms">${ms}ms</span>
+            </div>`;
+        }).join("")
+      : `<div class="idle-line">No API calls yet this session.</div>`;
+  }
+  apiTrayTicker();
+}
+
 /* ============================================================================
  * ORCHESTRATION
  * ========================================================================== */
@@ -1144,45 +1627,32 @@ async function refresh(manual) {
       state.tokenMember = await getMember(token);
       state.members = await getMembers(token);
       state.groups = await getGroups(token);
-      state.mode = getStoredMode();
+      state.tab = getStoredTab();               // validated; legacy MODE_KEY values ignored
       state.memberRoles = getStoredMemberRoles();
-
-      // Restore the viewed member; fall back to the token owner if it's gone.
-      const storedId = getStoredViewMemberId();
-      const stored = storedId ? state.members.find((m) => String(m.id) === storedId) : null;
-      state.viewMember = stored || state.tokenMember;
+      state.teammateId = getStoredViewMemberId() || String(state.tokenMember.id);
+      state.teamId = getStoredTeamId();
     }
 
     const workflows = await getWorkflows(token);
 
-    // Detect roles from the board each refresh (cheap, keeps the picker fresh).
+    // Detect roles + build the flat state-name lookup for chips (both cheap).
     state.detectedRoles = detectRoles(workflows);
-    // Resolve the selected global role: stored → detected (+Planner) → first
-    // detected → COLUMN_PREFIX seed if literally nothing was detected.
+    state.stateNameById = buildStateNameById(workflows);
+
+    // Resolve roles: stored → detected (+Planner) → first detected → COLUMN_PREFIX.
     const valid = new Set([...state.detectedRoles.roles, "Planner"]);
-    let role = state.role || getStoredRole();
-    if (!valid.has(role)) role = state.detectedRoles.roles[0] || CONFIG.COLUMN_PREFIX;
-    state.role = role;
-    setStoredRole(role);
+    const fallbackRole = state.detectedRoles.roles[0] || CONFIG.COLUMN_PREFIX;
 
-    // Resolve the active target SET for the global role + its cross-column rank.
-    const targets = resolveTargets(state.detectedRoles, state.role);
-    const targetIds = targets.map((t) => t.id);
-    state.stateRank = stateRankFromTargets(targets);
-    state.target = targets[0] || null; // representative for meta display
+    let myRole = state.myRole || getStoredRole();
+    if (!valid.has(myRole)) myRole = fallbackRole;
+    state.myRole = myRole;
+    state.role = myRole;                         // canonical global fallback mirrors My Queue role
+    setStoredRole(myRole);
 
-    if (!targets.length) {
-      clearError();
-      app.innerHTML = controlsHtml() + `
-        <div class="empty">
-          <div class="big">🧭</div>
-          <div>No open column resolves for role "<b>${esc(state.role)}</b>".</div>
-          <div class="muted" style="margin-top:6px">Pick a different role above, or check that your board has <code>${esc(state.role)} (Stage)</code> states.</div>
-        </div>`;
-      wireControls();
-      state.lastRefreshed = Date.now();
-      return;
-    }
+    let roleView = state.roleView || getStoredRoleView();
+    if (!valid.has(roleView)) roleView = fallbackRole;
+    state.roleView = roleView;
+    setStoredRoleView(roleView);
 
     const now = Date.now();
     clearError();
@@ -1197,21 +1667,75 @@ async function refresh(manual) {
       return [...new Map(all.map((s) => [s.id, s])).values()];
     };
 
-    if (state.mode === "team") {
+    // Shared "no columns resolve" empty state.
+    const noColumnsEmpty = (roleName) => {
+      app.innerHTML = controlsHtml() + `
+        <div class="empty">
+          <div class="big">🧭</div>
+          <div>No open column resolves for role "<b>${esc(roleName)}</b>".</div>
+          <div class="muted" style="margin-top:6px">Pick a different role above, or check that your board has <code>${esc(roleName)} (Stage)</code> states.</div>
+        </div>`;
+      wireControls();
+    };
+
+    if (state.tab === "myqueue") {
+      const targets = resolveTargets(state.detectedRoles, state.myRole);
+      state.target = targets[0] || null;
+      state.stateRank = stateRankFromTargets(targets);
+      if (!targets.length) { noColumnsEmpty(state.myRole); state.lastRefreshed = now; return; }
+      const me = state.tokenMember;
+      state.viewMember = me;
+      const stories = await searchAcrossTargets(targets, `owner:${me.mention_name} `);
+      const pick = pickNextPaused(stories, me.id, targets, CONFIG.URGENT_LABEL);
+      renderResult(pick.next, pick.queue, pick.paused, state.myRole, me, now);
+
+    } else if (state.tab === "teammates") {
+      const tm = currentTeammate();
+      state.viewMember = tm;
+      const role = state.memberRoles[tm.id] || state.role;
+      const targets = resolveTargets(state.detectedRoles, role);
+      state.target = targets[0] || null;
+      if (!targets.length) { noColumnsEmpty(role); state.lastRefreshed = now; return; }
+      const stories = await searchAcrossTargets(targets, `owner:${tm.mention_name} `);
+      const pick = pickNextPaused(stories, tm.id, targets, CONFIG.URGENT_LABEL);
+      renderResult(pick.next, pick.queue, pick.paused, role, tm, now);
+
+    } else if (state.tab === "team") {
       // Union of target states across every assigned member role + the global
-      // role (bounded by #roles, not #members). No per-member network calls.
+      // fallback (bounded by #roles, not #members). No per-member network calls.
       const unionRoles = new Set([state.role, ...Object.values(state.memberRoles)]);
       const unionById = new Map();
       unionRoles.forEach((r) => resolveTargets(state.detectedRoles, r)
         .forEach((st) => { if (!unionById.has(st.id)) unionById.set(st.id, st); }));
       const stories = await searchAcrossTargets([...unionById.values()], "");
-      renderTeamManager(state.groups, state.members, stories, state.target, now);
-    } else {
-      // Personal mode: broad query by the *viewed* member across the target set.
-      const view = state.viewMember || state.tokenMember;
-      const stories = await searchAcrossTargets(targets, `owner:${view.mention_name} `);
-      const { next, queue } = pickNext(stories, view.id, targetIds, CONFIG.URGENT_LABEL, state.stateRank);
-      renderResult(next, queue, state.target, now);
+
+      // Resolve the selected team; default to a "My team", else the first team,
+      // else the "No team" bucket.
+      const myId = state.tokenMember.id;
+      const sortedGroups = state.groups.slice().sort((a, b) => a.name.localeCompare(b.name));
+      let team = state.groups.find((g) => String(g.id) === String(state.teamId));
+      if (!team && state.teamId === NO_TEAM_ID) {
+        const grouped = new Set();
+        state.groups.forEach((g) => g.member_ids.forEach((id) => grouped.add(id)));
+        team = { id: NO_TEAM_ID, name: "No team", member_ids: state.members.filter((m) => !grouped.has(m.id)).map((m) => m.id) };
+      }
+      if (!team) team = sortedGroups.find((g) => g.member_ids.includes(myId)) || sortedGroups[0];
+      if (team) { state.teamId = team.id; setStoredTeamId(team.id); }
+
+      state.target = null;
+      if (!team) {
+        app.innerHTML = controlsHtml() + `<div class="empty"><div class="big">👥</div><div>No teams found in this workspace.</div></div>`;
+        wireControls();
+      } else {
+        renderTeamManager(team, state.members, stories, now);
+      }
+
+    } else if (state.tab === "role") {
+      const targets = resolveTargets(state.detectedRoles, state.roleView);
+      state.target = targets[0] || null;
+      if (!targets.length) { noColumnsEmpty(state.roleView); state.lastRefreshed = now; return; }
+      const stories = await searchAcrossTargets(targets, "");
+      renderRoleManager(state.members, stories, now);
     }
 
     state.lastRefreshed = now;
@@ -1258,6 +1782,20 @@ document.getElementById("resetToken").addEventListener("click", (e) => {
   clearToken();
   boot();
 });
+
+// Manage Teammates modal: static open/close wiring (list is rendered on open).
+document.getElementById("closeManage").addEventListener("click", closeManageModal);
+document.getElementById("manageModal").addEventListener("click", (e) => {
+  if (e.target.id === "manageModal") closeManageModal(); // click backdrop to dismiss
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeManageModal(); });
+
+// API tray: toggle expand/collapse.
+document.getElementById("apiTrayHandle").addEventListener("click", () => {
+  apiTrayOpen = !apiTrayOpen;
+  apiTrayRender();
+});
+apiTrayRender(); // seed the collapsed handle
 
 // Refresh when tab regains focus so the queue is current when you come back.
 document.addEventListener("visibilitychange", () => {

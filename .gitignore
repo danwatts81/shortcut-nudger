@@ -1,5 +1,6 @@
 # Nimbalyst local working directory (plans, session artifacts)
 nimbalyst-local/
+.nimbalyst/
 
 # OS / editor cruft
 .DS_Store

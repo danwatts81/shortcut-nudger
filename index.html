@@ -156,6 +156,25 @@
     font-weight: 600;
   }
 
+  /* ---- Timing badges (FT-3/FT-4) ---- */
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge {
+    font-size: 11.5px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .badge.stale {
+    background: var(--urgent-bg);
+    border-color: var(--urgent);
+    color: var(--urgent);
+    font-weight: 600;
+  }
+
   /* ---- Queue list ---- */
   .section-title {
     font-size: 13px;
@@ -188,6 +207,78 @@
     color: var(--muted);
   }
   .empty .big { font-size: 40px; margin-bottom: 8px; }
+
+  /* ---- Controls row: mode toggle + member switcher (FT-1/FT-2) ---- */
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 12px 16px;
+    flex-wrap: wrap;
+    margin-bottom: 22px;
+  }
+  .mode-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .mode-toggle button {
+    border: none;
+    border-radius: 0;
+    background: var(--panel);
+    color: var(--muted);
+    padding: 8px 14px;
+  }
+  .mode-toggle button + button { border-left: 1px solid var(--border); }
+  .mode-toggle button.active { background: var(--accent-2); color: #fff; font-weight: 600; }
+  .mode-toggle button:hover:not(.active) { color: var(--text); }
+
+  .switcher { display: inline-flex; align-items: center; gap: 8px; }
+  .switcher select { flex: 0 1 220px; padding: 8px 10px; }
+  .viewing-hint { color: var(--muted); font-size: 12.5px; }
+  .viewing-hint b { color: var(--text); }
+  .viewing-hint .reset { margin-left: 8px; }
+
+  /* ---- Team Manager (FT-2) ---- */
+  .team-section { margin-bottom: 26px; }
+  .team-section > h3 {
+    font-size: 14px;
+    margin: 0 0 12px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .team-section > h3 .count { color: var(--muted); font-size: 12px; font-weight: 400; }
+  .member-row {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+  }
+  .member-row .who { font-weight: 600; margin-bottom: 8px; }
+  .member-row .who .mention { color: var(--muted); font-weight: 400; font-size: 12.5px; margin-left: 6px; }
+  .nn { display: flex; gap: 10px; align-items: baseline; margin-bottom: 6px; flex-wrap: wrap; }
+  .nn .tag {
+    font-size: 10.5px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--accent);
+    flex: 0 0 auto;
+    width: 42px;
+  }
+  .nn.next-line .tag { color: var(--muted); }
+  .nn .item { flex: 1; min-width: 0; }
+  .nn .item .iname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nn .item a { text-decoration: none; }
+  .nn.urgent .tag { color: var(--urgent); }
+  .more-toggle {
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    padding: 2px 0;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  .more-toggle:hover { text-decoration: underline; }
+  .mini-queue { margin-top: 8px; }
+  .idle-line { color: var(--muted); font-size: 12.5px; padding: 4px 2px; }
 
   .banner {
     border-radius: 10px;
@@ -228,8 +319,11 @@ const CONFIG = {
   COLUMN_PREFIX: "Dev",       // target column = right-most workflow state whose name starts with this (case-insensitive)
   URGENT_LABEL: "urgent",     // stories carrying this label jump the queue
   POLL_MS: 30000,             // auto-refresh interval (ms)
+  STALE_DAYS: 3,              // a ticket sat this many days in its column gets the "stale" highlight
   API_BASE: "https://api.app.shortcut.com/api/v3",
   TOKEN_KEY: "shortcut_nudger_token",
+  VIEW_MEMBER_KEY: "shortcut_nudger_view_member", // persists the member whose queue you're viewing (FT-1)
+  MODE_KEY: "shortcut_nudger_mode",               // persists "me" | "team" view mode (FT-2)
 };
 
 /* ============================================================================
@@ -292,6 +386,35 @@ function pickNext(stories, myId, targetStateId, urgentLabel) {
   return { next: sorted[0] || null, queue: sorted.slice(1), all: sorted };
 }
 
+/**
+ * Compact, human elapsed time from an ISO timestamp to `nowMs`.
+ * Buckets: <60s "just now"; <60m "Nm"; <24h "Nh"; else "Nd".
+ * `nowMs` is injected so this stays pure and unit-testable.
+ * @returns {string|null} formatted string, or null for missing/unparseable input.
+ */
+function formatDuration(fromISO, nowMs) {
+  if (!fromISO) return null;
+  const then = Date.parse(fromISO);
+  if (Number.isNaN(then)) return null;
+  const ms = Math.max(0, nowMs - then);
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return "just now";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h`;
+  const days = Math.floor(hr / 24);
+  return `${days}d`;
+}
+
+/** Whole days elapsed from an ISO timestamp to `nowMs` (0 if missing/invalid). */
+function daysSince(fromISO, nowMs) {
+  if (!fromISO) return 0;
+  const then = Date.parse(fromISO);
+  if (Number.isNaN(then)) return 0;
+  return Math.floor(Math.max(0, nowMs - then) / 86400000);
+}
+
 /* ============================================================================
  * API MODULE — thin wrappers over the Shortcut REST API.
  *
@@ -344,6 +467,31 @@ async function getMember(token) {
   };
 }
 
+/** All active (non-disabled) members, `{ id, name, mention_name }`, sorted by name. */
+async function getMembers(token) {
+  const raw = await apiFetch("/members", token);
+  return (raw || [])
+    .filter((m) => !m.disabled)
+    .map((m) => ({
+      id: m.id,
+      name: m.profile?.name || m.profile?.mention_name || "unknown",
+      mention_name: m.profile?.mention_name || "",
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** All active (non-archived) teams/groups, `{ id, name, member_ids }`. */
+async function getGroups(token) {
+  const raw = await apiFetch("/groups", token);
+  return (raw || [])
+    .filter((g) => !g.archived)
+    .map((g) => ({
+      id: g.id,
+      name: g.name || "Team",
+      member_ids: Array.isArray(g.member_ids) ? g.member_ids : [],
+    }));
+}
+
 async function getWorkflows(token) {
   return apiFetch("/workflows", token);
 }
@@ -374,11 +522,29 @@ const app = document.getElementById("app");
 const metaBar = document.getElementById("metaBar");
 const bannerEl = document.getElementById("banner");
 let pollTimer = null;
-let state = { member: null, target: null, lastRefreshed: null, loading: false };
+let state = {
+  tokenMember: null,   // the token owner (identity / "reset to me")
+  viewMember: null,    // whose queue is shown in personal mode (defaults to tokenMember)
+  mode: "me",          // "me" | "team"
+  members: [],         // cached member lookup (fetched once per boot)
+  groups: [],          // cached team lookup (fetched once per boot)
+  target: null,
+  lastRefreshed: null,
+  loading: false,
+};
 
 function getToken() { return localStorage.getItem(CONFIG.TOKEN_KEY) || ""; }
 function setToken(t) { localStorage.setItem(CONFIG.TOKEN_KEY, t.trim()); }
 function clearToken() { localStorage.removeItem(CONFIG.TOKEN_KEY); }
+
+function getStoredViewMemberId() { return localStorage.getItem(CONFIG.VIEW_MEMBER_KEY) || ""; }
+function setStoredViewMemberId(id) { localStorage.setItem(CONFIG.VIEW_MEMBER_KEY, String(id)); }
+
+function getStoredMode() {
+  const m = localStorage.getItem(CONFIG.MODE_KEY);
+  return m === "team" ? "team" : "me";
+}
+function setStoredMode(m) { localStorage.setItem(CONFIG.MODE_KEY, m); }
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) =>
@@ -407,13 +573,35 @@ function storyIdLabel(s) {
   return s.id != null ? `sc-${s.id}` : "";
 }
 
+/**
+ * Timing chips for a story: how long it's sat in its current column
+ * (moved_at, falling back to created_at) and how long since anything changed
+ * (updated_at). In-state chip gets the `stale` class past CONFIG.STALE_DAYS.
+ * @returns {string} HTML (possibly empty).
+ */
+function timingBadges(story, nowMs) {
+  const inState = formatDuration(story.moved_at || story.created_at, nowMs);
+  const touched = formatDuration(story.updated_at, nowMs);
+  const chips = [];
+  if (inState) {
+    const stale = daysSince(story.moved_at || story.created_at, nowMs) >= CONFIG.STALE_DAYS;
+    chips.push(`<span class="badge${stale ? " stale" : ""}" title="Time in current column">⏱ in state ${esc(inState)}</span>`);
+  }
+  if (touched) {
+    const suffix = touched === "just now" ? "" : " ago";
+    chips.push(`<span class="badge" title="Time since last change">✎ updated ${esc(touched)}${suffix}</span>`);
+  }
+  if (!chips.length) return "";
+  return `<div class="badges">${chips.join("")}</div>`;
+}
+
 function renderMeta() {
-  if (!state.member) { metaBar.innerHTML = ""; return; }
+  if (!state.tokenMember) { metaBar.innerHTML = ""; return; }
   const t = state.lastRefreshed
     ? new Date(state.lastRefreshed).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
     : "—";
   metaBar.innerHTML = `
-    <span><b>${esc(state.member.name)}</b></span>
+    <span><b>${esc(state.tokenMember.name)}</b></span>
     <span>column <b>${esc(state.target ? state.target.name : "?")}</b></span>
     <span>updated <b>${t}</b>${state.loading ? ' <span class="spin">↻</span>' : ""}</span>
     <button class="tiny ghost" id="refreshBtn">Refresh</button>
@@ -422,9 +610,71 @@ function renderMeta() {
   if (rb) rb.onclick = () => refresh(true);
 }
 
+/**
+ * Controls row: mode toggle (My Queue / Team Manager) and, in personal mode,
+ * a member switcher + "viewing someone else" hint. Returns HTML; call
+ * wireControls() after inserting it into the DOM.
+ */
+function controlsHtml() {
+  if (!state.tokenMember) return "";
+  const modeToggle = `
+    <div class="mode-toggle">
+      <button data-mode="me" class="${state.mode === "me" ? "active" : ""}">My Queue</button>
+      <button data-mode="team" class="${state.mode === "team" ? "active" : ""}">Team Manager</button>
+    </div>`;
+
+  let switcher = "";
+  if (state.mode === "me" && state.members.length) {
+    const opts = state.members
+      .map((m) => {
+        const sel = state.viewMember && m.id === state.viewMember.id ? " selected" : "";
+        const you = m.id === state.tokenMember.id ? " (you)" : "";
+        return `<option value="${esc(m.id)}"${sel}>${esc(m.name)}${you}</option>`;
+      })
+      .join("");
+    switcher = `
+      <div class="switcher">
+        <label for="memberSelect" class="viewing-hint">Viewing</label>
+        <select id="memberSelect">${opts}</select>
+      </div>`;
+    if (state.viewMember && state.viewMember.id !== state.tokenMember.id) {
+      switcher += `<span class="viewing-hint">Viewing <b>${esc(state.viewMember.name)}</b> (not you)<a href="#" class="reset" id="resetMe">reset to me</a></span>`;
+    }
+  }
+  return `<div class="controls">${modeToggle}${switcher}</div>`;
+}
+
+function wireControls() {
+  document.querySelectorAll(".mode-toggle button[data-mode]").forEach((btn) => {
+    btn.onclick = () => {
+      const m = btn.getAttribute("data-mode");
+      if (m === state.mode) return;
+      state.mode = m;
+      setStoredMode(m);
+      refresh(true);
+    };
+  });
+  const sel = document.getElementById("memberSelect");
+  if (sel) {
+    sel.onchange = () => {
+      const m = state.members.find((x) => String(x.id) === sel.value);
+      if (m) { state.viewMember = m; setStoredViewMemberId(m.id); refresh(true); }
+    };
+  }
+  const reset = document.getElementById("resetMe");
+  if (reset) {
+    reset.onclick = (e) => {
+      e.preventDefault();
+      state.viewMember = state.tokenMember;
+      setStoredViewMemberId(state.tokenMember.id);
+      refresh(true);
+    };
+  }
+}
+
 function renderSetup(prefillError) {
   stopPolling();
-  state.member = null;
+  state.tokenMember = null;
   renderMeta();
   app.innerHTML = `
     <div class="setup">
@@ -457,19 +707,22 @@ function renderSetup(prefillError) {
   input.focus();
 }
 
-function renderResult(next, queue, targetState) {
+function renderResult(next, queue, targetState, nowMs) {
   const urgent = next && hasUrgentLabel(next, CONFIG.URGENT_LABEL);
+  const viewingOther = state.viewMember && state.tokenMember && state.viewMember.id !== state.tokenMember.id;
+  const whose = viewingOther ? `${esc(state.viewMember.name)}'s` : "your";
 
-  let html = "";
+  let html = controlsHtml();
 
   if (!next) {
     html += `
       <div class="empty">
         <div class="big">🎉</div>
-        <div>Nothing assigned to you in <b>${esc(targetState ? targetState.name : "your Dev column")}</b>.</div>
-        <div class="muted" style="margin-top:6px">Enjoy the breather — or grab something from the board.</div>
+        <div>Nothing assigned to ${viewingOther ? `<b>${esc(state.viewMember.name)}</b>` : "you"} in <b>${esc(targetState ? targetState.name : "the Dev column")}</b>.</div>
+        <div class="muted" style="margin-top:6px">${viewingOther ? "Their column is clear." : "Enjoy the breather — or grab something from the board."}</div>
       </div>`;
     app.innerHTML = html;
+    wireControls();
     return;
   }
 
@@ -478,7 +731,8 @@ function renderResult(next, queue, targetState) {
       <div class="kicker">${urgent ? "🔥 Urgent — work on this next" : "Work on this next"}</div>
       <h2 class="story-name">${esc(next.name)}</h2>
       <div class="story-id">${esc(storyIdLabel(next))}</div>
-      <div class="row" style="justify-content:space-between">
+      ${timingBadges(next, nowMs)}
+      <div class="row" style="justify-content:space-between; margin-top:12px">
         ${labelChips(next) || "<span></span>"}
         <a href="${esc(next.app_url || "#")}" target="_blank" rel="noopener">
           <button class="primary">Open in Shortcut ↗</button>
@@ -487,7 +741,7 @@ function renderResult(next, queue, targetState) {
     </div>`;
 
   if (queue.length) {
-    html += `<div><p class="section-title">Then (${queue.length})</p><ul class="queue">`;
+    html += `<div><p class="section-title">Then (${queue.length}) — ${whose} queue</p><ul class="queue">`;
     queue.forEach((s, i) => {
       const urg = hasUrgentLabel(s, CONFIG.URGENT_LABEL);
       html += `
@@ -495,6 +749,7 @@ function renderResult(next, queue, targetState) {
           <span class="rank">${i + 2}</span>
           <span class="qname" title="${esc(s.name)}">${esc(s.name)}</span>
           ${urg ? '<span class="label urgent">urgent</span>' : ""}
+          ${timingBadges(s, nowMs)}
           <a href="${esc(s.app_url || "#")}" target="_blank" rel="noopener">
             <button class="tiny ghost">Open ↗</button>
           </a>
@@ -504,6 +759,150 @@ function renderResult(next, queue, targetState) {
   }
 
   app.innerHTML = html;
+  wireControls();
+}
+
+/* ---- Team Manager (FT-2) ---- */
+
+/** Sanitize an id into a DOM-safe fragment for element ids. */
+function domId(...parts) {
+  return "mq_" + parts.map((p) => String(p).replace(/[^\w-]/g, "_")).join("_");
+}
+
+/** One member's Now / Next / expandable-rest block. */
+function memberRowHtml(member, pick, nowMs, uid) {
+  const now = pick.next;
+  const nextItem = pick.queue[0] || null;
+  const rest = pick.queue.slice(1);
+  const nowUrgent = now && hasUrgentLabel(now, CONFIG.URGENT_LABEL);
+
+  let html = `
+    <div class="member-row">
+      <div class="who">${esc(member.name)}${member.mention_name ? `<span class="mention">@${esc(member.mention_name)}</span>` : ""}</div>
+      <div class="nn${nowUrgent ? " urgent" : ""}">
+        <span class="tag">Now</span>
+        <span class="item">
+          <div class="row" style="gap:8px">
+            <a class="iname" href="${esc(now.app_url || "#")}" target="_blank" rel="noopener" title="${esc(now.name)}">${esc(now.name)}</a>
+            ${nowUrgent ? '<span class="label urgent">urgent</span>' : ""}
+          </div>
+          ${timingBadges(now, nowMs)}
+        </span>
+      </div>`;
+
+  if (nextItem) {
+    const nu = hasUrgentLabel(nextItem, CONFIG.URGENT_LABEL);
+    html += `
+      <div class="nn next-line">
+        <span class="tag">Next</span>
+        <span class="item">
+          <a class="iname" href="${esc(nextItem.app_url || "#")}" target="_blank" rel="noopener" title="${esc(nextItem.name)}">${esc(nextItem.name)}</a>
+          ${nu ? ' <span class="label urgent">urgent</span>' : ""}
+        </span>
+      </div>`;
+  }
+
+  if (rest.length) {
+    html += `<button class="more-toggle" data-target="${uid}">${rest.length} more assigned ▸</button>`;
+    html += `<ul class="queue mini-queue" id="${uid}" style="display:none">`;
+    rest.forEach((s, i) => {
+      const urg = hasUrgentLabel(s, CONFIG.URGENT_LABEL);
+      html += `
+        <li class="${urg ? "urgent" : ""}">
+          <span class="rank">${i + 3}</span>
+          <span class="qname" title="${esc(s.name)}">${esc(s.name)}</span>
+          ${urg ? '<span class="label urgent">urgent</span>' : ""}
+          ${timingBadges(s, nowMs)}
+          <a href="${esc(s.app_url || "#")}" target="_blank" rel="noopener">
+            <button class="tiny ghost">Open ↗</button>
+          </a>
+        </li>`;
+    });
+    html += `</ul>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+/** One team section: working members shown, idle ones collapsed to a count. */
+function teamSectionHtml(name, key, memberIds, byId, pickFor, nowMs) {
+  const working = [];
+  let idle = 0;
+  memberIds.forEach((id) => {
+    const member = byId.get(id);
+    if (!member) return;
+    const pick = pickFor(id);
+    if (pick.all.length) working.push({ member, pick });
+    else idle++;
+  });
+  if (!working.length && !idle) return "";
+
+  let html = `<div class="team-section"><h3>${esc(name)} <span class="count">${working.length} active${idle ? `, ${idle} idle` : ""}</span></h3>`;
+  working
+    .sort((a, b) => a.member.name.localeCompare(b.member.name))
+    .forEach(({ member, pick }) => {
+      html += memberRowHtml(member, pick, nowMs, domId(key, member.id));
+    });
+  if (!working.length) html += `<div class="idle-line">No one on this team has a ticket in this column.</div>`;
+  html += `</div>`;
+  return html;
+}
+
+function renderTeamManager(groups, members, stories, target, nowMs) {
+  const byId = new Map(members.map((m) => [m.id, m]));
+
+  // pickNext is memoized per member so a multi-team member isn't recomputed.
+  const picks = new Map();
+  const pickFor = (id) => {
+    if (!picks.has(id)) picks.set(id, pickNext(stories, id, target.id, CONFIG.URGENT_LABEL));
+    return picks.get(id);
+  };
+
+  let html = controlsHtml();
+  const sections = [];
+
+  groups
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .forEach((g) => {
+      const ids = g.member_ids.filter((id) => byId.has(id));
+      sections.push(teamSectionHtml(g.name, g.id, ids, byId, pickFor, nowMs));
+    });
+
+  // "No team" bucket: active members belonging to no active group.
+  const grouped = new Set();
+  groups.forEach((g) => g.member_ids.forEach((id) => grouped.add(id)));
+  const noTeamIds = members.filter((m) => !grouped.has(m.id)).map((m) => m.id);
+  sections.push(teamSectionHtml("No team", "noteam", noTeamIds, byId, pickFor, nowMs));
+
+  const body = sections.filter(Boolean).join("");
+  if (body) {
+    html += body;
+  } else {
+    html += `
+      <div class="empty">
+        <div class="big">🌤️</div>
+        <div>No tickets in <b>${esc(target ? target.name : "the target column")}</b> across the workspace.</div>
+      </div>`;
+  }
+
+  app.innerHTML = html;
+  wireControls();
+  wireTeamToggles();
+}
+
+function wireTeamToggles() {
+  document.querySelectorAll(".more-toggle[data-target]").forEach((btn) => {
+    btn.onclick = () => {
+      const ul = document.getElementById(btn.getAttribute("data-target"));
+      if (!ul) return;
+      const open = ul.style.display !== "none";
+      ul.style.display = open ? "none" : "flex";
+      const n = ul.children.length;
+      btn.textContent = `${n} more assigned ${open ? "▸" : "▾"}`;
+    };
+  });
 }
 
 /* ============================================================================
@@ -517,7 +916,18 @@ async function refresh(manual) {
   state.loading = true;
   renderMeta();
   try {
-    if (!state.member) state.member = await getMember(token);
+    // First successful load: identity + workspace lookups (fetched once per boot).
+    if (!state.tokenMember) {
+      state.tokenMember = await getMember(token);
+      state.members = await getMembers(token);
+      state.groups = await getGroups(token);
+      state.mode = getStoredMode();
+
+      // Restore the viewed member; fall back to the token owner if it's gone.
+      const storedId = getStoredViewMemberId();
+      const stored = storedId ? state.members.find((m) => String(m.id) === storedId) : null;
+      state.viewMember = stored || state.tokenMember;
+    }
 
     const workflows = await getWorkflows(token);
     const target = pickTargetState(workflows, CONFIG.COLUMN_PREFIX);
@@ -535,14 +945,23 @@ async function refresh(manual) {
       return;
     }
 
-    // Query broadly by owner + state; pickNext does the authoritative filtering.
-    const q = `owner:${state.member.mention_name} state:"${target.name}" !is:archived`;
-    const stories = await searchStories(token, q);
-
-    const { next, queue } = pickNext(stories, state.member.id, target.id, CONFIG.URGENT_LABEL);
+    const now = Date.now();
     clearError();
-    renderResult(next, queue, target);
-    state.lastRefreshed = Date.now();
+
+    if (state.mode === "team") {
+      // One state-scoped search (no owner); pickNext splits it per member.
+      const stories = await searchStories(token, `state:"${target.name}" !is:archived`);
+      renderTeamManager(state.groups, state.members, stories, target, now);
+    } else {
+      // Personal mode: broad query by the *viewed* member + state; pickNext filters.
+      const view = state.viewMember || state.tokenMember;
+      const q = `owner:${view.mention_name} state:"${target.name}" !is:archived`;
+      const stories = await searchStories(token, q);
+      const { next, queue } = pickNext(stories, view.id, target.id, CONFIG.URGENT_LABEL);
+      renderResult(next, queue, target, now);
+    }
+
+    state.lastRefreshed = now;
   } catch (e) {
     if (e.code === "AUTH") {
       renderSetup("Your token was rejected. Please paste a valid Shortcut API token.");
@@ -571,7 +990,7 @@ function stopPolling() {
 async function boot() {
   clearError();
   if (!getToken()) { renderSetup(); return; }
-  state.member = null;
+  state.tokenMember = null;
   await refresh(true);
   if (getToken()) startPolling();
 }
@@ -587,7 +1006,7 @@ document.getElementById("resetToken").addEventListener("click", (e) => {
 
 // Refresh when tab regains focus so the queue is current when you come back.
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && getToken() && state.member) refresh(false);
+  if (document.visibilityState === "visible" && getToken() && state.tokenMember) refresh(false);
 });
 
 boot();

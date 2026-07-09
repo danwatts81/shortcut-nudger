@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Next Ticket — Shortcut Nudger</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1e222b;
+    --border: #2a2f3a;
+    --text: #e7e9ee;
+    --muted: #9aa2b1;
+    --accent: #6c8cff;
+    --accent-2: #4f6fe0;
+    --urgent: #ff5c7a;
+    --urgent-bg: #2a1620;
+    --ok: #46d18b;
+    --radius: 14px;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  .wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 28px 20px 64px;
+  }
+
+  header.app {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin-bottom: 20px;
+  }
+  header.app h1 {
+    font-size: 20px;
+    margin: 0;
+    letter-spacing: 0.2px;
+  }
+  header.app h1 .dot { color: var(--accent); }
+
+  .meta {
+    color: var(--muted);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .meta b { color: var(--text); font-weight: 600; }
+
+  button {
+    font: inherit;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: border-color .15s, background .15s, transform .05s;
+  }
+  button:hover { border-color: var(--accent); }
+  button:active { transform: translateY(1px); }
+  button.primary {
+    background: var(--accent-2);
+    border-color: var(--accent-2);
+    color: #fff;
+    font-weight: 600;
+  }
+  button.primary:hover { background: var(--accent); border-color: var(--accent); }
+  button.ghost { background: transparent; }
+  button.tiny { padding: 5px 10px; font-size: 13px; border-radius: 8px; }
+
+  a { color: var(--accent); }
+
+  /* ---- Setup card ---- */
+  .setup {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    box-shadow: var(--shadow);
+    max-width: 520px;
+    margin: 40px auto;
+  }
+  .setup h2 { margin: 0 0 8px; font-size: 18px; }
+  .setup p { color: var(--muted); margin: 0 0 18px; }
+  .setup label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .field { display: flex; gap: 8px; }
+  input[type="password"], input[type="text"], select {
+    flex: 1;
+    font: inherit;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    min-width: 0;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  .hint { font-size: 12.5px; color: var(--muted); margin-top: 12px; }
+
+  /* ---- Next card ---- */
+  .next-card {
+    position: relative;
+    background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px 22px 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 26px;
+  }
+  .next-card.is-urgent {
+    border-color: var(--urgent);
+    box-shadow: 0 10px 30px rgba(255, 92, 122, 0.18);
+  }
+  .kicker {
+    font-size: 12px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .next-card.is-urgent .kicker { color: var(--urgent); }
+  .story-name { font-size: 22px; font-weight: 700; margin: 0 0 6px; line-height: 1.3; }
+  .story-id { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+  .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  .labels { display: flex; gap: 6px; flex-wrap: wrap; }
+  .label {
+    font-size: 12px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .label.urgent {
+    background: var(--urgent-bg);
+    border-color: var(--urgent);
+    color: var(--urgent);
+    font-weight: 600;
+  }
+
+  /* ---- Queue list ---- */
+  .section-title {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    margin: 0 0 12px;
+  }
+  ul.queue { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  ul.queue li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+  }
+  ul.queue li .rank { color: var(--muted); font-variant-numeric: tabular-nums; width: 22px; text-align: right; }
+  ul.queue li .qname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ul.queue li.urgent { border-color: var(--urgent); }
+  ul.queue li a { text-decoration: none; }
+
+  .empty {
+    background: var(--panel);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 40px 22px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .empty .big { font-size: 40px; margin-bottom: 8px; }
+
+  .banner {
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 18px;
+    font-size: 14px;
+    display: none;
+  }
+  .banner.error { display: block; background: #2a1620; border: 1px solid var(--urgent); color: #ffb3c2; }
+
+  .muted { color: var(--muted); }
+  .spin { animation: spin 1s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  footer { margin-top: 40px; text-align: center; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="app">
+    <h1>Next Ticket <span class="dot">●</span></h1>
+    <div class="meta" id="metaBar"></div>
+  </header>
+
+  <div id="banner" class="banner"></div>
+  <main id="app"></main>
+
+  <footer>
+    Shortcut Nudger · target column = right-most <b id="footPrefix"></b>* · urgent label = <b id="footUrgent"></b>
+    · <a href="#" id="resetToken">reset token</a>
+  </footer>
+</div>
+
+<script>
+/* ============================================================================
+ * CONFIG — tweak these to change behaviour. No build step, no dependencies.
+ * ========================================================================== */
+const CONFIG = {
+  COLUMN_PREFIX: "Dev",       // target column = right-most workflow state whose name starts with this (case-insensitive)
+  URGENT_LABEL: "urgent",     // stories carrying this label jump the queue
+  POLL_MS: 30000,             // auto-refresh interval (ms)
+  API_BASE: "https://api.app.shortcut.com/api/v3",
+  TOKEN_KEY: "shortcut_nudger_token",
+};
+
+/* ============================================================================
+ * PURE LOGIC — no DOM, no network. Reusable verbatim by a future Tampermonkey
+ * overlay. Fully unit-testable.
+ * ========================================================================== */
+
+/**
+ * Pick the target workflow state: the right-most (highest position) state,
+ * across all workflows, whose name starts with `prefix` (case-insensitive),
+ * excluding "done"-type (completed) states.
+ * @returns {object|null} the chosen state, or null if none match.
+ */
+function pickTargetState(workflows, prefix) {
+  const p = prefix.toLowerCase();
+  const candidates = [];
+  for (const wf of workflows || []) {
+    for (const st of wf.states || []) {
+      const name = (st.name || "").toLowerCase();
+      if (name.startsWith(p) && st.type !== "done") {
+        candidates.push({ ...st, workflow_id: wf.id, workflow_name: wf.name });
+      }
+    }
+  }
+  if (candidates.length === 0) return null;
+  // Right-most = highest board position.
+  candidates.sort((a, b) => (b.position ?? 0) - (a.position ?? 0));
+  return candidates[0];
+}
+
+/** True if a story carries the urgent label (case-insensitive name match). */
+function hasUrgentLabel(story, urgentLabel) {
+  const target = urgentLabel.toLowerCase();
+  const labels = story.labels || [];
+  return labels.some((l) => (l.name || "").toLowerCase() === target);
+}
+
+/**
+ * Rank the stories owned by me in the target column.
+ * Rule: urgent first, then top-to-bottom by board position.
+ * @returns {{ next: object|null, queue: object[], all: object[] }}
+ */
+function pickNext(stories, myId, targetStateId, urgentLabel) {
+  const mine = (stories || []).filter(
+    (s) =>
+      Array.isArray(s.owner_ids) &&
+      s.owner_ids.includes(myId) &&
+      s.workflow_state_id === targetStateId &&
+      !s.archived &&
+      !s.completed
+  );
+
+  const sorted = mine.slice().sort((a, b) => {
+    const ua = hasUrgentLabel(a, urgentLabel) ? 1 : 0;
+    const ub = hasUrgentLabel(b, urgentLabel) ? 1 : 0;
+    if (ua !== ub) return ub - ua;                 // urgent first
+    return (a.position ?? 0) - (b.position ?? 0);   // then top-to-bottom
+  });
+
+  return { next: sorted[0] || null, queue: sorted.slice(1), all: sorted };
+}
+
+/* ============================================================================
+ * API MODULE — thin wrappers over the Shortcut REST API. Token-authenticated
+ * requests are CORS-enabled by Shortcut, so these run straight from the browser.
+ * ========================================================================== */
+
+const API_ORIGIN = new URL(CONFIG.API_BASE).origin;
+
+async function apiFetch(pathOrUrl, token) {
+  const url = pathOrUrl.startsWith("http")
+    ? pathOrUrl
+    : pathOrUrl.startsWith("/api/")
+      ? API_ORIGIN + pathOrUrl
+      : CONFIG.API_BASE + pathOrUrl;
+
+  const res = await fetch(url, {
+    headers: { "Shortcut-Token": token, "Content-Type": "application/json" },
+  });
+
+  if (res.status === 401 || res.status === 403) {
+    const err = new Error("Token rejected (401/403). Check that your API token is valid.");
+    err.code = "AUTH";
+    throw err;
+  }
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Shortcut API ${res.status}: ${body.slice(0, 200) || res.statusText}`);
+  }
+  return res.json();
+}
+
+/** Current member tied to the token → identity, no name entry needed. */
+async function getMember(token) {
+  const m = await apiFetch("/member", token);
+  return {
+    id: m.id,
+    name: m.name || m.profile?.name || m.mention_name || "you",
+    mention_name: m.mention_name || m.profile?.mention_name || "",
+  };
+}
+
+async function getWorkflows(token) {
+  return apiFetch("/workflows", token);
+}
+
+/**
+ * Search stories via the operator-based search endpoint, following the `next`
+ * cursor to gather every page. We query broadly (by owner + state) and then
+ * filter precisely client-side in pickNext(), so an imperfect query can't
+ * corrupt the ranking.
+ */
+async function searchStories(token, query) {
+  const out = [];
+  let path = `/search/stories?page_size=25&query=${encodeURIComponent(query)}`;
+  let guard = 0;
+  while (path && guard++ < 40) {
+    const page = await apiFetch(path, token);
+    if (Array.isArray(page.data)) out.push(...page.data);
+    path = page.next || null; // `next` is a relative /api/v3/... path or null
+  }
+  return out;
+}
+
+/* ============================================================================
+ * STATE + RENDER
+ * ========================================================================== */
+
+const app = document.getElementById("app");
+const metaBar = document.getElementById("metaBar");
+const bannerEl = document.getElementById("banner");
+let pollTimer = null;
+let state = { member: null, target: null, lastRefreshed: null, loading: false };
+
+function getToken() { return localStorage.getItem(CONFIG.TOKEN_KEY) || ""; }
+function setToken(t) { localStorage.setItem(CONFIG.TOKEN_KEY, t.trim()); }
+function clearToken() { localStorage.removeItem(CONFIG.TOKEN_KEY); }
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
+  );
+}
+
+function showError(msg) {
+  bannerEl.textContent = msg;
+  bannerEl.className = "banner error";
+}
+function clearError() { bannerEl.className = "banner"; bannerEl.textContent = ""; }
+
+function labelChips(story) {
+  const labels = story.labels || [];
+  if (!labels.length) return "";
+  return `<div class="labels">${labels
+    .map((l) => {
+      const urg = (l.name || "").toLowerCase() === CONFIG.URGENT_LABEL.toLowerCase();
+      return `<span class="label${urg ? " urgent" : ""}">${esc(l.name)}</span>`;
+    })
+    .join("")}</div>`;
+}
+
+function storyIdLabel(s) {
+  return s.id != null ? `sc-${s.id}` : "";
+}
+
+function renderMeta() {
+  if (!state.member) { metaBar.innerHTML = ""; return; }
+  const t = state.lastRefreshed
+    ? new Date(state.lastRefreshed).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : "—";
+  metaBar.innerHTML = `
+    <span><b>${esc(state.member.name)}</b></span>
+    <span>column <b>${esc(state.target ? state.target.name : "?")}</b></span>
+    <span>updated <b>${t}</b>${state.loading ? ' <span class="spin">↻</span>' : ""}</span>
+    <button class="tiny ghost" id="refreshBtn">Refresh</button>
+  `;
+  const rb = document.getElementById("refreshBtn");
+  if (rb) rb.onclick = () => refresh(true);
+}
+
+function renderSetup(prefillError) {
+  stopPolling();
+  state.member = null;
+  renderMeta();
+  app.innerHTML = `
+    <div class="setup">
+      <h2>Connect your Shortcut account</h2>
+      <p>Paste your personal Shortcut API token. It's stored only in this browser
+         (localStorage) and sent straight to Shortcut — never to any other server.</p>
+      <label for="tokenInput">Shortcut API token</label>
+      <div class="field">
+        <input type="password" id="tokenInput" placeholder="e.g. 5f2b…" autocomplete="off" spellcheck="false" />
+        <button class="primary" id="saveToken">Save</button>
+      </div>
+      <div class="hint">
+        Get a token at
+        <a href="https://app.shortcut.com/settings/account/api-tokens" target="_blank" rel="noopener">
+          Settings → API Tokens</a>. Your identity (which tickets are "yours") is detected automatically from the token.
+      </div>
+    </div>
+  `;
+  if (prefillError) showError(prefillError);
+  const input = document.getElementById("tokenInput");
+  const save = () => {
+    const v = input.value.trim();
+    if (!v) { input.focus(); return; }
+    setToken(v);
+    clearError();
+    boot();
+  };
+  document.getElementById("saveToken").onclick = save;
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
+  input.focus();
+}
+
+function renderResult(next, queue, targetState) {
+  const urgent = next && hasUrgentLabel(next, CONFIG.URGENT_LABEL);
+
+  let html = "";
+
+  if (!next) {
+    html += `
+      <div class="empty">
+        <div class="big">🎉</div>
+        <div>Nothing assigned to you in <b>${esc(targetState ? targetState.name : "your Dev column")}</b>.</div>
+        <div class="muted" style="margin-top:6px">Enjoy the breather — or grab something from the board.</div>
+      </div>`;
+    app.innerHTML = html;
+    return;
+  }
+
+  html += `
+    <div class="next-card${urgent ? " is-urgent" : ""}">
+      <div class="kicker">${urgent ? "🔥 Urgent — work on this next" : "Work on this next"}</div>
+      <h2 class="story-name">${esc(next.name)}</h2>
+      <div class="story-id">${esc(storyIdLabel(next))}</div>
+      <div class="row" style="justify-content:space-between">
+        ${labelChips(next) || "<span></span>"}
+        <a href="${esc(next.app_url || "#")}" target="_blank" rel="noopener">
+          <button class="primary">Open in Shortcut ↗</button>
+        </a>
+      </div>
+    </div>`;
+
+  if (queue.length) {
+    html += `<div><p class="section-title">Then (${queue.length})</p><ul class="queue">`;
+    queue.forEach((s, i) => {
+      const urg = hasUrgentLabel(s, CONFIG.URGENT_LABEL);
+      html += `
+        <li class="${urg ? "urgent" : ""}">
+          <span class="rank">${i + 2}</span>
+          <span class="qname" title="${esc(s.name)}">${esc(s.name)}</span>
+          ${urg ? '<span class="label urgent">urgent</span>' : ""}
+          <a href="${esc(s.app_url || "#")}" target="_blank" rel="noopener">
+            <button class="tiny ghost">Open ↗</button>
+          </a>
+        </li>`;
+    });
+    html += `</ul></div>`;
+  }
+
+  app.innerHTML = html;
+}
+
+/* ============================================================================
+ * ORCHESTRATION
+ * ========================================================================== */
+
+async function refresh(manual) {
+  const token = getToken();
+  if (!token) return renderSetup();
+
+  state.loading = true;
+  renderMeta();
+  try {
+    if (!state.member) state.member = await getMember(token);
+
+    const workflows = await getWorkflows(token);
+    const target = pickTargetState(workflows, CONFIG.COLUMN_PREFIX);
+    state.target = target;
+
+    if (!target) {
+      clearError();
+      app.innerHTML = `
+        <div class="empty">
+          <div class="big">🧭</div>
+          <div>No workflow state starts with "<b>${esc(CONFIG.COLUMN_PREFIX)}</b>".</div>
+          <div class="muted" style="margin-top:6px">Edit <code>COLUMN_PREFIX</code> at the top of the page's script to match your board.</div>
+        </div>`;
+      state.lastRefreshed = Date.now();
+      return;
+    }
+
+    // Query broadly by owner + state; pickNext does the authoritative filtering.
+    const q = `owner:${state.member.mention_name} state:"${target.name}" !is:archived`;
+    const stories = await searchStories(token, q);
+
+    const { next, queue } = pickNext(stories, state.member.id, target.id, CONFIG.URGENT_LABEL);
+    clearError();
+    renderResult(next, queue, target);
+    state.lastRefreshed = Date.now();
+  } catch (e) {
+    if (e.code === "AUTH") {
+      renderSetup("Your token was rejected. Please paste a valid Shortcut API token.");
+      return;
+    }
+    showError(e.message || String(e));
+    if (manual || !state.lastRefreshed) {
+      app.innerHTML = `<div class="empty"><div class="big">⚠️</div><div>Couldn't reach Shortcut.</div>
+        <div class="muted" style="margin-top:6px">${esc(e.message || "")}</div></div>`;
+    }
+  } finally {
+    state.loading = false;
+    renderMeta();
+  }
+}
+
+function startPolling() {
+  stopPolling();
+  pollTimer = setInterval(() => refresh(false), CONFIG.POLL_MS);
+}
+function stopPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = null;
+}
+
+async function boot() {
+  clearError();
+  if (!getToken()) { renderSetup(); return; }
+  state.member = null;
+  await refresh(true);
+  if (getToken()) startPolling();
+}
+
+// Footer wiring
+document.getElementById("footPrefix").textContent = CONFIG.COLUMN_PREFIX;
+document.getElementById("footUrgent").textContent = CONFIG.URGENT_LABEL;
+document.getElementById("resetToken").addEventListener("click", (e) => {
+  e.preventDefault();
+  clearToken();
+  boot();
+});
+
+// Refresh when tab regains focus so the queue is current when you come back.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && getToken() && state.member) refresh(false);
+});
+
+boot();
+</script>
+</body>
+</html>
